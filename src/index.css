@@ -490,3 +490,21 @@ button.btn-secondary:hover {
   }
 }
 
+/* Premium Gradient Border Buttons for Landing Page */
+.btn-download {
+  border: 1px solid transparent !important;
+  border-radius: 16px !important;
+  background: linear-gradient(#080916, #080916) padding-box,
+              linear-gradient(135deg, var(--color-gold-start) 0%, var(--color-teal-start) 50%, #10b981 100%) border-box !important;
+  box-shadow: 0 4px 20px rgba(0, 242, 254, 0.03);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.btn-download:hover {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 8px 25px rgba(255, 215, 0, 0.1), 
+              0 0 15px rgba(0, 242, 254, 0.08);
+  background: linear-gradient(#121430, #121430) padding-box,
+              linear-gradient(135deg, #10b981 0%, var(--color-gold-start) 50%, var(--color-teal-start) 100%) border-box !important;
+}
+

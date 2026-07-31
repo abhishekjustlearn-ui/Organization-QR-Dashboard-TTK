@@ -111,9 +111,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ orgId, campaignId }) =
             rel="noopener noreferrer" 
             style={{
               ...styles.btn,
-              border: isIOS ? '1px solid var(--accent-gold)' : '1px solid var(--border-color)',
               animation: isIOS ? 'pulse 2s infinite' : 'none',
-              background: isIOS ? 'rgba(255, 215, 0, 0.08)' : 'rgba(255, 255, 255, 0.02)'
             }}
             className="btn-download"
           >
@@ -136,9 +134,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ orgId, campaignId }) =
             rel="noopener noreferrer" 
             style={{
               ...styles.btn,
-              border: isAndroid ? '1px solid var(--accent-gold)' : '1px solid var(--border-color)',
               animation: isAndroid ? 'pulse 2s infinite' : 'none',
-              background: isAndroid ? 'rgba(255, 215, 0, 0.08)' : 'rgba(255, 255, 255, 0.02)'
             }}
             className="btn-download"
           >
