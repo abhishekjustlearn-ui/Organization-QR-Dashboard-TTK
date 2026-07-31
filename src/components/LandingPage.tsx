@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Smartphone, Play, Download } from 'lucide-react';
+import { Smartphone, Play } from 'lucide-react';
 import { API_BASE } from '../config';
 
 interface LandingPageProps {
