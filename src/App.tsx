@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Menu } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { AnalyticsTab } from './components/AnalyticsTab';
 import { CampaignsTab } from './components/CampaignsTab';
@@ -23,6 +24,12 @@ function App() {
   // Active Layout State
   const [activeOrgId, setActiveOrgId] = useState('');
   const [activeTab, setActiveTab] = useState<'analytics' | 'campaigns' | 'settings' | 'system'>('analytics');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Close sidebar drawer on tab switch (useful on mobile layout)
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [activeTab, activeOrgId]);
 
   // Load organizations from backend
   const fetchOrganizations = async (role: 'super-admin' | 'sub-admin', orgId: string) => {
@@ -158,6 +165,12 @@ function App() {
 
   return (
     <div className="app-layout">
+      {/* Mobile Drawer Overlay Backdrop */}
+      <div 
+        className={`sidebar-overlay ${isSidebarOpen ? 'open' : ''}`} 
+        onClick={() => setIsSidebarOpen(false)}
+      />
+
       {/* Premium Navigation Sidebar */}
       <Sidebar
         organizations={organizations}
@@ -169,10 +182,22 @@ function App() {
         userEmail={userEmail}
         displayName={displayName}
         onLogout={handleLogout}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
       />
 
       {/* Main Tab Controller */}
       <main className="main-content">
+        {/* Mobile Header Bar */}
+        <header className="mobile-header">
+          <button className="mobile-menu-btn" onClick={() => setIsSidebarOpen(true)} aria-label="Open menu">
+            <Menu size={20} />
+          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#ffffff' }}>Talk to Krishna</span>
+            <span style={{ fontSize: '0.65rem', color: '#00f2fe', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{activeTab}</span>
+          </div>
+        </header>
         {activeTab === 'system' && userRole === 'super-admin' && (
           <AdminManagementTab
             organizations={organizations}

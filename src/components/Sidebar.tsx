@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, QrCode, Settings, Sparkles, LogOut, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, QrCode, Settings, Sparkles, LogOut, ShieldAlert, X } from 'lucide-react';
 import { Organization } from '../mockData';
 
 interface SidebarProps {
@@ -12,6 +12,8 @@ interface SidebarProps {
   userEmail: string;
   displayName: string;
   onLogout: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -24,11 +26,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   userEmail,
   displayName,
   onLogout,
+  isOpen = false,
+  onClose,
 }) => {
   const activeOrg = organizations.find((o) => o.org_id === activeOrgId);
 
   return (
-    <aside style={styles.sidebar}>
+    <aside className={`sidebar-container ${isOpen ? 'open' : ''}`} style={styles.sidebar}>
       {/* Brand Header */}
       <div style={styles.brandContainer}>
         <div style={styles.logoCircle}>
@@ -40,6 +44,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <h1 style={styles.brandTitle}>Talk to Krishna</h1>
           <span style={styles.brandSubtitle}>Org Dashboard</span>
         </div>
+        {onClose && (
+          <button className="mobile-close-btn" onClick={onClose} aria-label="Close sidebar">
+            <X size={20} />
+          </button>
+        )}
       </div>
 
       {/* Organization Selector / Label */}

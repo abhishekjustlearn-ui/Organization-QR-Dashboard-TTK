@@ -133,17 +133,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             )}
           </button>
         </form>
-
-        {/* Hint text for evaluation (discreet) */}
-        <div style={styles.hintBox}>
-          <span style={styles.hintTitle}>Demo Access Details:</span>
-          <div style={styles.hintGrid}>
-            <span>Admin: abhishek@justlearnindia.in</span>
-            <span>Pass: AdminPassword123!</span>
-            <span>Sub-Admin: delhi@talktokrishna.com</span>
-            <span>Pass: Delhi123!</span>
-          </div>
-        </div>
       </div>
     </div>
   );
