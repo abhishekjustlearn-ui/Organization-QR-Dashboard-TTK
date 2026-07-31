@@ -24,6 +24,23 @@ app.use(cors({
 
 app.use(express.json());
 
+let isDbInitialized = false;
+
+// Middleware to ensure DB schema exists, running inside request context so Vercel doesn't freeze CPU
+const dbInitMiddleware = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (!isDbInitialized) {
+    try {
+      await initializeSchema();
+      isDbInitialized = true;
+    } catch (err) {
+      console.error('Failed to initialize database schemas inside request:', err);
+    }
+  }
+  next();
+};
+
+app.use(dbInitMiddleware);
+
 // Bind routes
 app.use('/api/auth', authRoutes);
 app.use('/api/orgs', orgRoutes);
@@ -58,11 +75,6 @@ const startServer = async () => {
 // Conditionally start listening if not running on Vercel serverless
 if (!process.env.VERCEL) {
   startServer();
-} else {
-  // On Vercel serverless, run migrations asynchronously on module initialization
-  initializeSchema().catch(err => {
-    console.error('Failed to initialize schemas on Vercel startup:', err);
-  });
 }
 
 export default app;
