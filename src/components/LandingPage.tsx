@@ -76,7 +76,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ orgId, campaignId }) =
           </p>
 
           <div style={styles.footerLine}>
-            <span style={styles.footerHighlightGold}>Talk To Krishna</span> in association with <span style={styles.footerHighlightTeal}>{orgName}</span>
+            <span style={styles.footerHighlightGold}>talktokrishna.ai</span> in association with <span style={styles.footerHighlightTeal}>{orgName}</span>
           </div>
         </div>
       </div>
@@ -92,7 +92,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ orgId, campaignId }) =
       <div style={styles.card}>
         <div style={styles.badge}>
           <Smartphone size={14} style={{ color: 'var(--accent-gold)' }} />
-          <span>DOWNLOAD THE APP</span>
+          <span>DOWNLOAD THE talktokrishna.ai APP</span>
         </div>
 
         <h1 style={styles.title}>
@@ -153,7 +153,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ orgId, campaignId }) =
         </div>
 
         <div style={styles.footerLine}>
-          <span style={styles.footerHighlightGold}>Talk To Krishna</span> in association with <span style={styles.footerHighlightTeal}>{orgName}</span>
+          <span style={styles.footerHighlightGold}>talktokrishna.ai</span> in association with <span style={styles.footerHighlightTeal}>{orgName}</span>
         </div>
       </div>
     </div>
