@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Save, Copy, Check, Terminal, ShieldAlert } from 'lucide-react';
 import { Organization } from '../mockData';
+import { API_BASE } from '../config';
 
 interface OrgSettingsTabProps {
   organization: Organization;
@@ -18,7 +19,7 @@ export const OrgSettingsTab: React.FC<OrgSettingsTabProps> = ({
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch(`http://localhost:5000/api/orgs/${organization.org_id}`, {
+      const response = await fetch(`${API_BASE}/api/orgs/${organization.org_id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

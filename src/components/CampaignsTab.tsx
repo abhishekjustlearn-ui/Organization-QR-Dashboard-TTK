@@ -6,6 +6,7 @@ import { QRPreview, QRStyleOptions } from './QRPreview';
 import { logoPresets } from '../assets/logoPresets';
 
 import { useEffect } from 'react';
+import { API_BASE } from '../config';
 
 interface CampaignsTabProps {
   organization: Organization;
@@ -43,7 +44,7 @@ export const CampaignsTab: React.FC<CampaignsTabProps> = ({
   const fetchCampaigns = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/campaigns/${organization.org_id}`);
+      const response = await fetch(`${API_BASE}/api/campaigns/${organization.org_id}`);
       if (response.ok) {
         const data = await response.json();
         setLocalCampaigns(data);
@@ -75,7 +76,7 @@ export const CampaignsTab: React.FC<CampaignsTabProps> = ({
 
     const newId = `camp-${organization.org_id.split('-').pop()}-${Date.now().toString().slice(-4)}`;
     // The link should point to our public redirect endpoint: /api/track/qr/:campaignId
-    const qrLink = `http://localhost:5000/api/track/qr/${newId}`;
+    const qrLink = `${API_BASE}/api/track/qr/${newId}`;
     
     const newCamp: Campaign = {
       campaign_id: newId,
@@ -90,7 +91,7 @@ export const CampaignsTab: React.FC<CampaignsTabProps> = ({
     };
 
     try {
-      const response = await fetch('http://localhost:5000/api/campaigns', {
+      const response = await fetch(`${API_BASE}/api/campaigns`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newCamp)

@@ -12,6 +12,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { Organization, Campaign } from '../mockData';
+import { API_BASE } from '../config';
 
 interface AnalyticsTabProps {
   organization: Organization;
@@ -37,7 +38,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
     const fetchAnalytics = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`http://localhost:5000/api/analytics/${organization.org_id}`);
+        const response = await fetch(`${API_BASE}/api/analytics/${organization.org_id}`);
         if (response.ok) {
           const data = await response.json();
           setAnalyticsData(data);

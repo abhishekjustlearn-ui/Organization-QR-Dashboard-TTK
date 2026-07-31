@@ -6,6 +6,7 @@ import { OrgSettingsTab } from './components/OrgSettingsTab';
 import { AdminManagementTab } from './components/AdminManagementTab';
 import { Login } from './components/Login';
 import { Organization, SubAdminUser, Campaign } from './mockData';
+import { API_BASE } from './config';
 
 function App() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -25,7 +26,7 @@ function App() {
   // Load organizations from backend
   const fetchOrganizations = async (role: 'super-admin' | 'sub-admin', orgId: string) => {
     try {
-      const response = await fetch('http://localhost:5000/api/orgs');
+      const response = await fetch(`${API_BASE}/api/orgs`);
       if (response.ok) {
         const data = await response.json();
         setOrganizations(data);
@@ -45,7 +46,7 @@ function App() {
   // Load sub-admins from backend
   const fetchSubAdmins = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/orgs/subadmins');
+      const response = await fetch(`${API_BASE}/api/orgs/subadmins`);
       if (response.ok) {
         const data = await response.json();
         setSubAdmins(data);
@@ -98,7 +99,7 @@ function App() {
   // Wrapper function to onboard new organization
   const handleOnboardOrg = async (newOrg: Organization) => {
     try {
-      const response = await fetch('http://localhost:5000/api/orgs', {
+      const response = await fetch(`${API_BASE}/api/orgs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newOrg)
@@ -117,7 +118,7 @@ function App() {
   // Wrapper function to create sub-admin
   const handleCreateSubAdmin = async (newAdmin: SubAdminUser) => {
     try {
-      const response = await fetch('http://localhost:5000/api/orgs/subadmins', {
+      const response = await fetch(`${API_BASE}/api/orgs/subadmins`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newAdmin)
