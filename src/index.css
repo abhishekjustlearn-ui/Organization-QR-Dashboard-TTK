@@ -388,6 +388,23 @@ button.btn-secondary:hover {
   gap: 24px;
 }
 
+.chart-title-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.chart-toggle-group {
+  display: flex;
+  background-color: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 4px;
+  max-width: 100%;
+}
+
 /* Media Queries for Tablet and Mobile */
 @media (max-width: 1024px) {
   .mobile-header {
@@ -444,6 +461,26 @@ button.btn-secondary:hover {
   .admin-control-grid {
     grid-template-columns: 1fr !important;
     gap: 20px !important;
+  }
+
+  /* Stack chart title and selection buttons vertically on mobile/tablet viewports */
+  .chart-title-container {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 12px !important;
+    width: 100%;
+  }
+
+  .chart-toggle-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .chart-toggle-group button {
+    flex: 1;
+    text-align: center;
+    padding: 6px 8px !important;
+    font-size: 0.75rem !important;
   }
 }
 

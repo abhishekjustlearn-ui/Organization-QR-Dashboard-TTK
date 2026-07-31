@@ -228,9 +228,9 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
         
         {/* Trend Chart */}
         <div className="glass-card" style={styles.chartCard}>
-          <div style={styles.chartTitleContainer}>
+          <div className="chart-title-container">
             <h3 style={styles.cardTitle}>Acquisition Trends</h3>
-            <div style={styles.chartToggleGroup}>
+            <div className="chart-toggle-group">
               {(['scans', 'installs', 'signups', 'revenue'] as const).map((m) => (
                 <button
                   key={m}
@@ -520,18 +520,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '0.85rem',
     color: 'var(--text-secondary)',
     marginBottom: '16px',
-  },
-  chartTitleContainer: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  chartToggleGroup: {
-    display: 'flex',
-    backgroundColor: 'rgba(255, 255, 255, 0.02)',
-    border: '1px solid var(--border-color)',
-    borderRadius: '8px',
-    padding: '4px',
   },
   toggleBtn: {
     background: 'none',
