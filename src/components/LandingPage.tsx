@@ -114,7 +114,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ orgId, campaignId }) =
         </div>
 
         <div style={styles.footerLine}>
-          Talk To Krishna in association with {orgName}
+          <span style={styles.footerHighlightGold}>Talk To Krishna</span> in association with <span style={styles.footerHighlightTeal}>{orgName}</span>
         </div>
       </div>
     </div>
@@ -243,13 +243,27 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: '700',
     lineHeight: '1.1',
   },
-  footerLine: {
-    fontSize: '0.8rem',
+    footerLine: {
+    fontSize: '0.82rem',
     color: 'var(--text-muted)',
     marginTop: '28px',
     borderTop: '1px solid rgba(255, 255, 255, 0.05)',
     paddingTop: '16px',
     fontWeight: '500',
     letterSpacing: '0.02em',
+  },
+  footerHighlightGold: {
+    background: 'linear-gradient(90deg, #ffd700, #ffb700)',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    fontWeight: '700',
+    textShadow: '0 0 10px rgba(255, 215, 0, 0.15)',
+  },
+  footerHighlightTeal: {
+    background: 'linear-gradient(90deg, var(--color-teal-start), #00d2ff)',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    fontWeight: '700',
+    textShadow: '0 0 10px rgba(0, 242, 254, 0.15)',
   }
 };
