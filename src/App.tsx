@@ -7,6 +7,7 @@ import { AdminManagementTab } from './components/AdminManagementTab';
 import { Login } from './components/Login';
 import { Organization, SubAdminUser, Campaign } from './mockData';
 import { API_BASE } from './config';
+import { LandingPage } from './components/LandingPage';
 
 function App() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -135,6 +136,16 @@ function App() {
   };
 
   const activeOrg = organizations.find((o) => o.org_id === activeOrgId);
+
+  // Check if current URL path matches the landing page router pattern: /:orgId/:campaignId
+  const pathSegments = window.location.pathname.split('/').filter(Boolean);
+  const isLandingPage = pathSegments.length === 2 && 
+                        pathSegments[0].startsWith('org-') && 
+                        pathSegments[1].startsWith('camp-');
+
+  if (isLandingPage) {
+    return <LandingPage orgId={pathSegments[0]} campaignId={pathSegments[1]} />;
+  }
 
   // Guard Clause: If not logged in, mount Login Screen
   if (!isAuthenticated || !userRole) {

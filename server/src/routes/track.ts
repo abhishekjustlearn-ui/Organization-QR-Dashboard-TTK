@@ -205,4 +205,34 @@ router.post('/payment', async (req: Request, res: Response) => {
   }
 });
 
+// 6. Manual Click Logging Endpoint (POST /api/track/click)
+router.post('/click', async (req: Request, res: Response) => {
+  try {
+    const { org_id, campaign_id } = req.body;
+    if (!org_id || !campaign_id) {
+      return res.status(400).json({ error: 'Org ID and Campaign ID are required.' });
+    }
+
+    const userAgent = req.headers['user-agent'] || '';
+    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '';
+    
+    let deviceType = 'Desktop';
+    if (/android/i.test(userAgent)) {
+      deviceType = 'Android';
+    } else if (/iphone|ipad|ipod/i.test(userAgent)) {
+      deviceType = 'iOS';
+    }
+
+    await query(
+      'INSERT INTO click_events (org_id, campaign_id, device_type, ip_address, user_agent) VALUES ($1, $2, $3, $4, $5)',
+      [org_id, campaign_id, deviceType, ipAddress, userAgent]
+    );
+
+    return res.status(201).json({ success: true, message: 'Click event logged successfully.' });
+  } catch (err) {
+    console.error('Error logging click event:', err);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
 export default router;

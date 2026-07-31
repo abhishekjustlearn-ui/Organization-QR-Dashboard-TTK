@@ -76,7 +76,7 @@ export const CampaignsTab: React.FC<CampaignsTabProps> = ({
 
     const newId = `camp-${organization.org_id.split('-').pop()}-${Date.now().toString().slice(-4)}`;
     // The link should point to our public redirect endpoint: /api/track/qr/:campaignId
-    const qrLink = `${API_BASE}/api/track/qr/${newId}`;
+    const qrLink = `${window.location.origin}/${organization.org_id}/${newId}`;
     
     const newCamp: Campaign = {
       campaign_id: newId,
