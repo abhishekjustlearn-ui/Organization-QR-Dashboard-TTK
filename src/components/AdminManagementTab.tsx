@@ -136,7 +136,7 @@ export const AdminManagementTab: React.FC<AdminManagementTabProps> = ({
       </div>
 
       {activeSubTab === 'orgs' ? (
-        <div style={styles.contentGrid}>
+        <div className="admin-control-grid">
           {/* List of current Orgs */}
           <div className="glass-card" style={styles.leftCard}>
             <h3 style={styles.cardTitle}>Registered Organizations</h3>
@@ -249,7 +249,7 @@ export const AdminManagementTab: React.FC<AdminManagementTabProps> = ({
           </div>
         </div>
       ) : (
-        <div style={styles.contentGrid}>
+        <div className="admin-control-grid">
           {/* List of Sub Admins */}
           <div className="glass-card" style={styles.leftCard}>
             <h3 style={styles.cardTitle}>Active Sub-Admin Users</h3>
@@ -414,12 +414,6 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#080916',
     background: '#ffd700',
     borderColor: '#ffd700',
-  },
-  contentGrid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '24px',
-    alignItems: 'start',
   },
   leftCard: {
     display: 'flex',

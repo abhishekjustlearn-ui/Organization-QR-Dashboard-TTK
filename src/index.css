@@ -363,6 +363,31 @@ button.btn-secondary:hover {
   display: none;
 }
 
+/* Custom Grid Layout Definitions */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+}
+
+.analytics-main-grid {
+  display: grid;
+  grid-template-columns: 7fr 5fr;
+  gap: 24px;
+}
+
+.designer-grid {
+  display: grid;
+  grid-template-columns: 7fr 5fr;
+  gap: 24px;
+}
+
+.admin-control-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
 /* Media Queries for Tablet and Mobile */
 @media (max-width: 1024px) {
   .mobile-header {
@@ -406,6 +431,25 @@ button.btn-secondary:hover {
 
   .mobile-close-btn:hover {
     color: #ffd700;
+  }
+
+  /* Stack layout grids vertically for mobile/tablet screen sizes */
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 16px !important;
+  }
+
+  .analytics-main-grid,
+  .designer-grid,
+  .admin-control-grid {
+    grid-template-columns: 1fr !important;
+    gap: 20px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .kpi-grid {
+    grid-template-columns: 1fr !important;
   }
 }
 

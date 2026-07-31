@@ -224,7 +224,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
       </div>
 
       {/* Main Analytics Section: Chart and Funnel */}
-      <div style={styles.chartAndFunnelGrid}>
+      <div className="analytics-main-grid">
         
         {/* Trend Chart */}
         <div className="glass-card" style={styles.chartCard}>
@@ -506,11 +506,6 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  chartAndFunnelGrid: {
-    display: 'grid',
-    gridTemplateColumns: '7fr 5fr',
-    gap: '24px',
   },
   chartCard: {
     display: 'flex',

@@ -166,7 +166,7 @@ export const CampaignsTab: React.FC<CampaignsTabProps> = ({
       {/* Main Panel View */}
       {selectedCampaign ? (
         /* QR Styling View */
-        <div style={styles.designerGrid}>
+        <div className="designer-grid">
           {/* Customizer Control Panel */}
           <div style={styles.leftCol}>
             <div style={styles.backHeader}>
@@ -353,12 +353,6 @@ const styles: Record<string, React.CSSProperties> = {
   subtitle: {
     fontSize: '0.9rem',
     color: 'var(--text-secondary)',
-  },
-  designerGrid: {
-    display: 'grid',
-    gridTemplateColumns: '7fr 5fr',
-    gap: '24px',
-    alignItems: 'start',
   },
   leftCol: {
     display: 'flex',
