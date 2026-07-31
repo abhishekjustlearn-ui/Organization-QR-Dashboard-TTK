@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Smartphone, Play } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Smartphone, Play, ShieldAlert } from 'lucide-react';
 import { API_BASE } from '../config';
 
 interface LandingPageProps {
@@ -24,15 +24,27 @@ export const LandingPage: React.FC<LandingPageProps> = ({ orgId, campaignId }) =
   const isIOS = /iphone|ipad|ipod/.test(userAgent);
   const isAndroid = /android/.test(userAgent);
 
+  const [deactivationError, setDeactivationError] = useState<string | null>(null);
+
   // Automatically log scan event to the database on load
   useEffect(() => {
     const logScan = async () => {
       try {
-        await fetch(`${API_BASE}/api/track/click`, {
+        const response = await fetch(`${API_BASE}/api/track/click`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ org_id: orgId, campaign_id: campaignId })
         });
+        if (!response.ok) {
+          const data = await response.json();
+          if (data.code === 'ORG_SUSPENDED') {
+            setDeactivationError('Organization Suspended: Access to this partner service is currently suspended.');
+          } else if (data.code === 'CAMPAIGN_INACTIVE') {
+            setDeactivationError('QR Campaign Deactivated: This QR code has been paused or deactivated.');
+          } else {
+            setDeactivationError('Access Denied: Unable to verify QR code status.');
+          }
+        }
       } catch (err) {
         console.error('Failed to log QR scan attribution event:', err);
       }
@@ -43,6 +55,33 @@ export const LandingPage: React.FC<LandingPageProps> = ({ orgId, campaignId }) =
   // Destination URLs
   const playStoreUrl = `https://play.google.com/store/apps/details?id=com.talktokrishna.app&referrer=org_id%3D${orgId}%26campaign_id%3D${campaignId}`;
   const appStoreUrl = `https://apps.apple.com/app/talk-to-krishna/id6775909418`;
+
+  if (deactivationError) {
+    return (
+      <div style={styles.container}>
+        <div style={styles.glowLeft} />
+        <div style={styles.glowRight} />
+        <div style={styles.card}>
+          <div style={{ ...styles.badge, backgroundColor: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#ef4444' }}>
+            <ShieldAlert size={14} style={{ color: '#ef4444' }} />
+            <span>INACTIVE CODE</span>
+          </div>
+
+          <h1 style={styles.title}>
+            QR Code<br /><span style={{ color: '#ef4444' }}>Inactive</span>
+          </h1>
+
+          <p style={styles.description}>
+            {deactivationError}
+          </p>
+
+          <div style={styles.footerLine}>
+            <span style={styles.footerHighlightGold}>Talk To Krishna</span> in association with <span style={styles.footerHighlightTeal}>{orgName}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.container}>

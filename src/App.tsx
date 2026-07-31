@@ -142,6 +142,41 @@ function App() {
     }
   };
 
+  // Wrapper function to delete organization
+  const handleDeleteOrg = async (orgId: string) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/orgs/${orgId}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        await fetchOrganizations(userRole || 'super-admin', '');
+      } else {
+        alert('Failed to delete organization.');
+      }
+    } catch (err) {
+      console.error('Error deleting organization:', err);
+    }
+  };
+
+  // Wrapper function to toggle organization status (suspend/activate)
+  const handleToggleOrgStatus = async (orgId: string, currentStatus: string) => {
+    const nextStatus = currentStatus === 'suspended' ? 'active' : 'suspended';
+    try {
+      const response = await fetch(`${API_BASE}/api/orgs/${orgId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus })
+      });
+      if (response.ok) {
+        await fetchOrganizations(userRole || 'super-admin', activeOrgId);
+      } else {
+        alert('Failed to update organization status.');
+      }
+    } catch (err) {
+      console.error('Error toggling organization status:', err);
+    }
+  };
+
   const activeOrg = organizations.find((o) => o.org_id === activeOrgId);
 
   // Check if current URL path matches the landing page router pattern: /:orgId/:campaignId
@@ -202,6 +237,8 @@ function App() {
           <AdminManagementTab
             organizations={organizations}
             onboardOrg={handleOnboardOrg}
+            onDeleteOrg={handleDeleteOrg}
+            onToggleOrgStatus={handleToggleOrgStatus}
             subAdmins={subAdmins}
             createSubAdmin={handleCreateSubAdmin}
           />

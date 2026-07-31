@@ -18,6 +18,7 @@ export interface Campaign {
   signups_count: number;
   revenue: number;
   qr_config?: string; // JSON configuration of styled QR code
+  status?: 'active' | 'inactive';
 }
 
 export interface ActivityLog {

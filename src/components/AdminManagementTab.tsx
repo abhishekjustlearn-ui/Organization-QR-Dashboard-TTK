@@ -5,6 +5,8 @@ import { Organization, SubAdminUser } from '../mockData';
 interface AdminManagementTabProps {
   organizations: Organization[];
   onboardOrg: (org: Organization) => void;
+  onDeleteOrg: (orgId: string) => void;
+  onToggleOrgStatus: (orgId: string, currentStatus: string) => void;
   subAdmins: SubAdminUser[];
   createSubAdmin: (admin: SubAdminUser) => void;
 }
@@ -12,6 +14,8 @@ interface AdminManagementTabProps {
 export const AdminManagementTab: React.FC<AdminManagementTabProps> = ({
   organizations,
   onboardOrg,
+  onDeleteOrg,
+  onToggleOrgStatus,
   subAdmins,
   createSubAdmin,
 }) => {
@@ -157,6 +161,35 @@ export const AdminManagementTab: React.FC<AdminManagementTabProps> = ({
                       <span>ID: {org.org_id}</span>
                       <span>•</span>
                       <span>{subAdminCount} Sub-Admins mapped</span>
+                    </div>
+                    {/* Action Row for Super Admins */}
+                    <div style={styles.actionRow}>
+                      <button
+                        onClick={() => onToggleOrgStatus(org.org_id, org.status)}
+                        style={{
+                          ...styles.actionBtn,
+                          color: org.status === 'active' ? '#f59e0b' : '#10b981',
+                          backgroundColor: org.status === 'active' ? 'rgba(245, 158, 11, 0.05)' : 'rgba(16, 185, 129, 0.05)',
+                          border: org.status === 'active' ? '1px solid rgba(245, 158, 11, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)',
+                        }}
+                      >
+                        {org.status === 'active' ? 'Suspend' : 'Activate'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Are you sure you want to delete "${org.org_name}"? This will permanently delete all its sub-admins, campaigns, and attribution data!`)) {
+                            onDeleteOrg(org.org_id);
+                          }
+                        }}
+                        style={{
+                          ...styles.actionBtn,
+                          color: '#ef4444',
+                          backgroundColor: 'rgba(239, 68, 68, 0.05)',
+                          border: '1px solid rgba(239, 68, 68, 0.2)',
+                        }}
+                      >
+                        Delete
+                      </button>
                     </div>
                   </div>
                 );
@@ -520,5 +553,22 @@ const styles: Record<string, React.CSSProperties> = {
     left: '12px',
     color: 'var(--text-muted)',
     pointerEvents: 'none',
+  },
+  actionRow: {
+    display: 'flex',
+    gap: '10px',
+    marginTop: '14px',
+    borderTop: '1px solid rgba(255, 255, 255, 0.04)',
+    paddingTop: '12px',
+  },
+  actionBtn: {
+    flex: 1,
+    padding: '6px 12px',
+    fontSize: '0.8rem',
+    fontWeight: '600',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    textAlign: 'center',
+    transition: 'all 0.2s',
   }
 };

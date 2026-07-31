@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, BarChart2, QrCode, Calendar, ArrowRight, X } from 'lucide-react';
+import { Plus, BarChart2, QrCode, Calendar, ArrowRight, X, Power, Trash2 } from 'lucide-react';
 import { Organization, Campaign } from '../mockData';
 import { QRStylingPanel } from './QRStylingPanel';
 import { QRPreview, QRStyleOptions } from './QRPreview';
@@ -114,6 +114,39 @@ export const CampaignsTab: React.FC<CampaignsTabProps> = ({
     }
   };
 
+  const handleToggleStatus = async (campaignId: string, currentStatus?: string) => {
+    const nextStatus = currentStatus === 'inactive' ? 'active' : 'inactive';
+    try {
+      const response = await fetch(`${API_BASE}/api/campaigns/${campaignId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus })
+      });
+      if (response.ok) {
+        await fetchCampaigns();
+      } else {
+        alert('Failed to update campaign status.');
+      }
+    } catch (err) {
+      console.error('Error toggling campaign status:', err);
+    }
+  };
+
+  const handleDeleteCampaign = async (campaignId: string) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/campaigns/${campaignId}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        await fetchCampaigns();
+      } else {
+        alert('Failed to delete campaign.');
+      }
+    } catch (err) {
+      console.error('Error deleting campaign:', err);
+    }
+  };
+
   return (
     <div style={styles.container}>
       {/* Header */}
@@ -212,8 +245,22 @@ export const CampaignsTab: React.FC<CampaignsTabProps> = ({
                   <tr key={camp.campaign_id}>
                     <td style={{ fontWeight: '600' }}>
                       <div style={styles.campNameCol}>
-                        <QrCode size={16} style={{ color: '#ffd700' }} />
-                        <span>{camp.campaign_name}</span>
+                        <QrCode size={16} style={{ color: camp.status === 'inactive' ? 'var(--text-muted)' : '#ffd700' }} />
+                        <span style={{ color: camp.status === 'inactive' ? 'var(--text-muted)' : 'inherit' }}>
+                          {camp.campaign_name}
+                        </span>
+                        <span style={{ 
+                          fontSize: '0.65rem', 
+                          fontWeight: '700', 
+                          marginLeft: '8px',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          textTransform: 'uppercase',
+                          backgroundColor: camp.status === 'inactive' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                          color: camp.status === 'inactive' ? '#ef4444' : '#10b981'
+                        }}>
+                          {camp.status || 'active'}
+                        </span>
                       </div>
                     </td>
                     <td>
@@ -229,15 +276,44 @@ export const CampaignsTab: React.FC<CampaignsTabProps> = ({
                       ${camp.revenue.toLocaleString()}
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <button
-                        onClick={() => handleSelectCampaign(camp)}
-                        className="btn-secondary"
-                        style={styles.designBtn}
-                      >
-                        <BarChart2 size={13} />
-                        <span>Design & Export QR</span>
-                        <ArrowRight size={12} />
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                        <button
+                          onClick={() => handleSelectCampaign(camp)}
+                          className="btn-secondary"
+                          style={styles.designBtn}
+                        >
+                          <BarChart2 size={13} />
+                          <span>Design</span>
+                          <ArrowRight size={12} />
+                        </button>
+                        <button
+                          onClick={() => handleToggleStatus(camp.campaign_id, camp.status)}
+                          style={{
+                            ...styles.statusActionBtn,
+                            color: camp.status === 'inactive' ? '#10b981' : '#f59e0b',
+                            backgroundColor: camp.status === 'inactive' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(245, 158, 11, 0.05)',
+                            border: camp.status === 'inactive' ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(245, 158, 11, 0.2)',
+                          }}
+                        >
+                          <Power size={13} />
+                          <span>{camp.status === 'inactive' ? 'Activate' : 'Pause'}</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`Are you sure you want to delete campaign "${camp.campaign_name}"?`)) {
+                              handleDeleteCampaign(camp.campaign_id);
+                            }
+                          }}
+                          style={{
+                            ...styles.deleteActionBtn,
+                            color: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.05)',
+                            border: '1px solid rgba(239, 68, 68, 0.2)',
+                          }}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -380,5 +456,25 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '40px',
     color: 'var(--text-muted)',
     fontStyle: 'italic',
+  },
+  statusActionBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '6px 10px',
+    fontSize: '0.75rem',
+    fontWeight: '600',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+  },
+  deleteActionBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '6px',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
   }
 };

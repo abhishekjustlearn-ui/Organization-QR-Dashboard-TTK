@@ -98,4 +98,33 @@ router.post('/subadmins', async (req: Request, res: Response) => {
   }
 });
 
+// DELETE organization (Cascades to subadmins, campaigns, etc.)
+router.delete('/:orgId', async (req: Request, res: Response) => {
+  try {
+    const { orgId } = req.params;
+    await query('DELETE FROM organizations WHERE org_id = $1', [orgId]);
+    return res.status(200).json({ success: true, message: 'Organization and all associated data deleted.' });
+  } catch (err) {
+    console.error('Error deleting organization:', err);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// PUT toggle organization status
+router.put('/:orgId/status', async (req: Request, res: Response) => {
+  try {
+    const { orgId } = req.params;
+    const { status } = req.body; // 'active' or 'suspended'
+    if (!status || (status !== 'active' && status !== 'suspended')) {
+      return res.status(400).json({ error: 'Invalid status value.' });
+    }
+
+    await query('UPDATE organizations SET status = $1 WHERE org_id = $2', [status, orgId]);
+    return res.status(200).json({ success: true, message: `Organization status set to ${status}.` });
+  } catch (err) {
+    console.error('Error toggling organization status:', err);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
 export default router;

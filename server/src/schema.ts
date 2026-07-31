@@ -81,6 +81,12 @@ export const initializeSchema = async () => {
   try {
     console.log('Initializing PostgreSQL database schemas on Neon AWS...');
     await query(schemaSQL);
+    
+    // Ensure status column exists in campaigns table for campaign deactivation feature
+    await query(`
+      ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+    `);
+
     console.log('Schemas created successfully or already exist.');
   } catch (err) {
     console.error('Error initializing database schema', err);

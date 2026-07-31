@@ -213,6 +213,24 @@ router.post('/click', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Org ID and Campaign ID are required.' });
     }
 
+    // Check organization status
+    const orgRes = await query('SELECT status FROM organizations WHERE org_id = $1', [org_id]);
+    if (orgRes.rows.length === 0) {
+      return res.status(404).json({ success: false, code: 'ORG_NOT_FOUND', error: 'Organization not found.' });
+    }
+    if (orgRes.rows[0].status !== 'active') {
+      return res.status(403).json({ success: false, code: 'ORG_SUSPENDED', error: 'Organization is currently suspended.' });
+    }
+
+    // Check campaign status
+    const campRes = await query('SELECT status FROM campaigns WHERE campaign_id = $1', [campaign_id]);
+    if (campRes.rows.length === 0) {
+      return res.status(404).json({ success: false, code: 'CAMPAIGN_NOT_FOUND', error: 'Campaign not found.' });
+    }
+    if (campRes.rows[0].status !== 'active') {
+      return res.status(403).json({ success: false, code: 'CAMPAIGN_INACTIVE', error: 'This QR campaign has been deactivated.' });
+    }
+
     const userAgent = req.headers['user-agent'] || '';
     const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '';
     
