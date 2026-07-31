@@ -7,9 +7,12 @@ const connectionString = process.env.DATABASE_URL || 'postgresql://neondb_owner:
 
 export const pool = new Pool({
   connectionString,
+  ssl: {
+    rejectUnauthorized: false, // Bypass SSL validation issues in serverless environments
+  },
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  connectionTimeoutMillis: 15000, // Increase to 15s to prevent cold start network timeouts on Vercel
 });
 
 export const query = async (text: string, params?: any[]) => {
