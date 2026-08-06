@@ -253,4 +253,64 @@ router.post('/click', async (req: Request, res: Response) => {
   }
 });
 
+// 7. Phase 2 — iOS Scan Lookup Endpoint (called by App Backend as DASHBOARD_SCAN_LOOKUP_URL)
+// App Backend POSTs fingerprint fields here to get org_id + campaign_id for iOS users
+router.post('/ios-scan-lookup', async (req: Request, res: Response) => {
+  try {
+    // Optional: verify x-dashboard-scan-lookup-key header if set
+    const LOOKUP_KEY = process.env.DASHBOARD_SCAN_LOOKUP_KEY || '';
+    if (LOOKUP_KEY) {
+      const incomingKey = req.headers['x-dashboard-scan-lookup-key'] as string || '';
+      if (incomingKey !== LOOKUP_KEY) {
+        return res.status(401).json({ error: 'Invalid lookup key.' });
+      }
+    }
+
+    const { ip_address, device_model, os_version, screen_resolution, timezone } = req.body;
+    if (!ip_address) {
+      return res.status(400).json({ error: 'ip_address is required.' });
+    }
+
+    // Match against click_events: same IP + iOS device + within 72-hour window
+    // (72h as recommended in PDF to cover delayed iOS installs)
+    const matchQuery = `
+      SELECT click_id, org_id, campaign_id, timestamp
+      FROM click_events
+      WHERE ip_address = $1
+        AND device_type = 'iOS'
+        AND timestamp >= NOW() - INTERVAL '72 hours'
+      ORDER BY timestamp DESC
+      LIMIT 1
+    `;
+
+    const matchRes = await query(matchQuery, [ip_address]);
+
+    if (matchRes.rows.length > 0) {
+      const match = matchRes.rows[0];
+
+      // Log this fingerprint match for audit trail
+      await query(
+        `INSERT INTO fingerprint_matches
+         (click_id, ip_address, device_model, os_version, screen_resolution, timezone, matched, matched_user_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [match.click_id, ip_address, device_model || null, os_version || null,
+         screen_resolution || null, timezone || null, true, 'app-backend-lookup']
+      );
+
+      // Return org_id + campaign_id — App Backend will set these on the user row
+      return res.status(200).json({
+        org_id: match.org_id,
+        campaign_id: match.campaign_id
+      });
+    }
+
+    // No match found — return non-2xx so App Backend leaves the row unresolved
+    return res.status(404).json({ matched: false, message: 'No matching iOS scan event found within 72 hours.' });
+
+  } catch (err) {
+    console.error('Error in iOS scan lookup:', err);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
 export default router;
