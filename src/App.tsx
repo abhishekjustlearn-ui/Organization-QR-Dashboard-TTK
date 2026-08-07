@@ -87,7 +87,17 @@ function App() {
   // Fetch data on authentication
   useEffect(() => {
     if (isAuthenticated && userRole) {
-      fetchOrganizations(userRole, activeOrgId);
+      // Only fetch if organizations are not loaded yet to prevent race conditions from overriding activeOrgId
+      if (organizations.length === 0) {
+        const saved = localStorage.getItem('ttk_session');
+        let savedOrgId = '';
+        if (saved) {
+          try {
+            savedOrgId = JSON.parse(saved).orgId || '';
+          } catch {}
+        }
+        fetchOrganizations(userRole, activeOrgId || savedOrgId);
+      }
       if (userRole === 'super-admin') {
         fetchSubAdmins();
       }
