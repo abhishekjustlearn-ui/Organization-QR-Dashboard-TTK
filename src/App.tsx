@@ -31,6 +31,26 @@ function App() {
     setIsSidebarOpen(false);
   }, [activeTab, activeOrgId]);
 
+  // Restore session from localStorage on page load (prevents logout on refresh)
+  useEffect(() => {
+    const saved = localStorage.getItem('ttk_session');
+    if (saved) {
+      try {
+        const session = JSON.parse(saved);
+        if (session.role && session.email) {
+          setUserRole(session.role);
+          setUserEmail(session.email);
+          setDisplayName(session.name || '');
+          setIsAuthenticated(true);
+          fetchOrganizations(session.role, session.orgId || '');
+          if (session.role === 'super-admin') fetchSubAdmins();
+        }
+      } catch {
+        localStorage.removeItem('ttk_session');
+      }
+    }
+  }, []);
+
   // Load organizations from backend
   const fetchOrganizations = async (role: 'super-admin' | 'sub-admin', orgId: string) => {
     try {
@@ -85,7 +105,10 @@ function App() {
     setDisplayName(name);
     setIsAuthenticated(true);
     setActiveTab('analytics');
-    
+
+    // Persist session so refresh doesn't log out the user
+    localStorage.setItem('ttk_session', JSON.stringify({ role, email, orgId, name }));
+
     // Trigger loading organizations immediately with custom parameters
     fetchOrganizations(role, orgId);
     if (role === 'super-admin') {
@@ -94,6 +117,7 @@ function App() {
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('ttk_session');  // Clear persisted session
     setIsAuthenticated(false);
     setUserRole(null);
     setUserEmail('');
