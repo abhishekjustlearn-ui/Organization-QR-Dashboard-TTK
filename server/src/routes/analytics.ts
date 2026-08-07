@@ -50,9 +50,6 @@ router.get('/:orgId', async (req: Request, res: Response) => {
     const payingDonors = payingDonorsRes.rows[0]?.count || 0;
 
     // ── 2. APP BACKEND — Real Installs & Signups ────────────────────────────
-    // Fetches from App Backend's stats API endpoint, filtered by org_id.
-    // Returns null gracefully if App Backend is not reachable.
-    // Call App Backend stats API with required auth header
     const appStats = await fetchJson(
       `${APP_BACKEND_URL}/api/stats/attributions?org_id=${encodeURIComponent(orgId)}`,
       { 'x-partner-attribution-admin-key': PARTNER_ATTRIBUTION_ADMIN_KEY }
