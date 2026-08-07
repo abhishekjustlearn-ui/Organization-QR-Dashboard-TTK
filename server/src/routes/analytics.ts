@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { query } from '../db';
+import { Pool } from 'pg';
 
 const router = Router();
 
@@ -10,6 +11,23 @@ const APP_BACKEND_URL = process.env.APP_BACKEND_URL || 'https://talk-to-krishna-
 
 // Auth key — set PARTNER_ATTRIBUTION_ADMIN_KEY in Vercel env vars
 const PARTNER_ATTRIBUTION_ADMIN_KEY = process.env.PARTNER_ATTRIBUTION_ADMIN_KEY || '';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// App Team DB (READ-ONLY) — for pulling paying user counts per org/campaign
+// ─────────────────────────────────────────────────────────────────────────────
+const APP_DB_URL = process.env.APP_DATABASE_URL || 'postgresql://neondb_owner:npg_xQXA5TDcwI3W@ep-falling-glitter-ah5yt8sv-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+const appPool = new Pool({ connectionString: APP_DB_URL, max: 3 });
+
+// Read-only query helper for App DB — returns [] on any error, never throws
+const appQuery = async (sql: string, params: any[] = []): Promise<any[]> => {
+  try {
+    const res = await appPool.query(sql, params);
+    return res.rows;
+  } catch (err) {
+    console.error('[App DB] query error:', err);
+    return [];
+  }
+};
 
 // Helper: fetch JSON with timeout using native Node 18 fetch + AbortController
 // Returns null on any error so the dashboard never crashes
@@ -53,6 +71,53 @@ router.get('/:orgId', async (req: Request, res: Response) => {
       // Ensure we normalize currency keys
       revenueByCurrency[curr] = row.amount;
       donorsByCurrency[curr] = row.donors;
+    });
+
+    // ── 1b. APP DB — Paying Users Count (direct DB — most accurate source) ──
+    // READ-ONLY: COUNT of distinct users who have a verified payment receipt,
+    // scoped to this org_id. amount_minor is null in App DB so we just count people.
+    const payingUsersRows = await appQuery(`
+      WITH attributed_payers AS (
+        SELECT DISTINCT u.id
+        FROM global_users u
+        INNER JOIN payment_receipts r ON r.user_id = u.id
+        WHERE u.org_id = $1 AND u.deleted_at IS NULL
+
+        UNION
+
+        SELECT DISTINCT u.id
+        FROM global_users u
+        INNER JOIN dash_payments d
+          ON d.status = 'paid'
+         AND (
+           d.global_user_id = u.id
+           OR (d.global_user_id IS NULL AND d.email IS NOT NULL
+               AND lower(d.email::text) = lower(u.email::text))
+         )
+        WHERE u.org_id = $1 AND u.deleted_at IS NULL
+      )
+      SELECT COUNT(*)::int AS paying_users FROM attributed_payers
+    `, [orgId]);
+
+    const totalPayingUsers = payingUsersRows[0]?.paying_users || 0;
+
+    // Also fetch daily paying user dates for timeline trend graph
+    const payingDailyRows = await appQuery(`
+      SELECT
+        TO_CHAR(r.verified_at, 'Mon DD') AS date,
+        COUNT(DISTINCT u.id)::int AS paying
+      FROM global_users u
+      INNER JOIN payment_receipts r ON r.user_id = u.id
+      WHERE u.org_id = $1
+        AND u.deleted_at IS NULL
+        AND r.verified_at >= NOW() - INTERVAL '29 days'
+      GROUP BY TO_CHAR(r.verified_at, 'Mon DD')
+    `, [orgId]);
+
+    // Build map: "Mon DD" -> paying count
+    const payingDatesMap: Record<string, number> = {};
+    payingDailyRows.forEach((row: any) => {
+      payingDatesMap[row.date] = row.paying || 0;
     });
 
     // ── 2. APP BACKEND — Real Installs & Signups ────────────────────────────
@@ -149,16 +214,17 @@ router.get('/:orgId', async (req: Request, res: Response) => {
     `;
     const timelineRes = await query(timelineQuery, [orgId]);
 
-    // Populate actual installs & signups trends dynamically from our user list signup_date map
+    // Populate actual installs, signups & paying trends dynamically
     const timelineRows = timelineRes.rows.map((row: any) => {
       const dateKey = row.date; // format "Mon DD"
       const signupsCount = signupDatesMap[dateKey] || 0;
+      const payingCount = payingDatesMap[dateKey] || 0;
       return {
         date: row.date,
         scans: row.scans,
         installs: signupsCount,
         signups: signupsCount,
-        revenue: row.revenue
+        paying: payingCount
       };
     });
 
@@ -237,6 +303,7 @@ router.get('/:orgId', async (req: Request, res: Response) => {
         totalScans,
         totalInstalls,
         totalSignups,
+        totalPayingUsers,          // from App Team DB — most accurate paying users count
         funnel,
         appBackendConnected: appStats !== null,   // lets frontend show a warning if disconnected
         revenueByCurrency,
