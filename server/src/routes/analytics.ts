@@ -1,46 +1,30 @@
 import { Router, Request, Response } from 'express';
 import { query } from '../db';
-import https from 'https';
-import http from 'http';
 
 const router = Router();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // App Backend base URL — set APP_BACKEND_URL in .env / Vercel environment vars
-// e.g. APP_BACKEND_URL=https://talktokrishna-backend.onrender.com
 // ─────────────────────────────────────────────────────────────────────────────
-// Production URL confirmed by App Team deployment email (Aug 7)
 const APP_BACKEND_URL = process.env.APP_BACKEND_URL || 'https://talk-to-krishna-backend.onrender.com';
 
 // Auth key — set PARTNER_ATTRIBUTION_ADMIN_KEY in Vercel env vars
-// Key confirmed by App Team: 3f9935bb09f6bfec76b18a70561a676a7dee894aabec7c26b1a57c1d420edbf6
 const PARTNER_ATTRIBUTION_ADMIN_KEY = process.env.PARTNER_ATTRIBUTION_ADMIN_KEY || '';
 
-// Helper: HTTP GET with auth header + 8s timeout
-// NOTE: Vercel free tier kills functions after 10s — keep this under 10s
-const fetchJson = (url: string, headers: Record<string, string> = {}): Promise<any | null> => {
-  return new Promise((resolve) => {
-    const lib = url.startsWith('https') ? https : http;
-    const parsedUrl = new URL(url);
-    const options = {
-      hostname: parsedUrl.hostname,
-      path: parsedUrl.pathname + parsedUrl.search,
-      method: 'GET',
-      timeout: 8000,   // 8s — safe within Vercel's 10s function limit
-      headers
-    };
-    const req = lib.request(options, (res) => {
-      let data = '';
-      res.on('data', (chunk: any) => { data += chunk; });
-      res.on('end', () => {
-        try { resolve(JSON.parse(data)); }
-        catch { resolve(null); }
-      });
-    });
-    req.on('error', () => resolve(null));
-    req.on('timeout', () => { req.destroy(); resolve(null); });
-    req.end();
-  });
+// Helper: fetch JSON with timeout using native Node 18 fetch + AbortController
+// Returns null on any error so the dashboard never crashes
+const fetchJson = async (url: string, headers: Record<string, string> = {}): Promise<any | null> => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 7000); // 7s timeout
+  try {
+    const res = await fetch(url, { headers, signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    clearTimeout(timer);
+    return null;
+  }
 };
 
 router.get('/:orgId', async (req: Request, res: Response) => {
