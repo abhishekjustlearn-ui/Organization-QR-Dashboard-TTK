@@ -217,9 +217,9 @@ router.get('/:orgId', async (req: Request, res: Response) => {
       campaignBreakdown   // per-campaign signup data from App Backend
     });
 
-  } catch (err) {
+  } catch (err: any) {
     console.error('Error fetching analytics details:', err);
-    return res.status(500).json({ error: 'Internal server error.' });
+    return res.status(500).json({ error: 'Internal server error.', detail: err?.message || String(err) });
   }
 });
 
