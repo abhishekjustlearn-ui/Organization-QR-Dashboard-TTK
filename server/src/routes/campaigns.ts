@@ -1,7 +1,21 @@
 import { Router, Request, Response } from 'express';
 import { query } from '../db';
+import { Pool } from 'pg';
 
 const router = Router();
+
+const APP_DB_URL = process.env.APP_DATABASE_URL || 'postgresql://neondb_owner:npg_xQXA5TDcwI3W@ep-falling-glitter-ah5yt8sv-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+const appPool = new Pool({ connectionString: APP_DB_URL, max: 3 });
+
+const appQuery = async (sql: string, params: any[] = []): Promise<any[]> => {
+  try {
+    const res = await appPool.query(sql, params);
+    return res.rows;
+  } catch (err) {
+    console.error('[App DB Campaigns] query error:', err);
+    return [];
+  }
+};
 
 // GET all campaigns
 router.get('/', async (req: Request, res: Response) => {
@@ -68,12 +82,36 @@ router.get('/:orgId', async (req: Request, res: Response) => {
       ORDER BY c.created_at DESC
     `;
 
-    const [dbResult, appStats] = await Promise.all([
+    const [dbResult, appStats, payingCampaignRows] = await Promise.all([
       query(queryStr, [orgId]),
       fetchJson(
         `${APP_BACKEND_URL}/api/stats/attributions?org_id=${encodeURIComponent(orgId)}`,
         { 'x-partner-attribution-admin-key': PARTNER_ATTRIBUTION_ADMIN_KEY }
-      )
+      ),
+      appQuery(`
+        WITH attributed_payers AS (
+          SELECT DISTINCT u.id AS global_user_id, u.campaign_id
+          FROM global_users u
+          INNER JOIN payment_receipts r ON r.user_id = u.id
+          WHERE u.org_id = $1 AND u.deleted_at IS NULL
+
+          UNION
+
+          SELECT DISTINCT u.id AS global_user_id, u.campaign_id
+          FROM global_users u
+          INNER JOIN dash_payments d
+            ON d.status = 'paid'
+           AND (
+             d.global_user_id = u.id
+             OR (d.global_user_id IS NULL AND d.email IS NOT NULL
+                 AND lower(d.email::text) = lower(u.email::text))
+           )
+          WHERE u.org_id = $1 AND u.deleted_at IS NULL
+        )
+        SELECT campaign_id, COUNT(*)::int AS paying_users
+        FROM attributed_payers
+        GROUP BY campaign_id
+      `, [orgId])
     ]);
 
     // Find campaign stats from App Backend
@@ -85,6 +123,11 @@ router.get('/:orgId', async (req: Request, res: Response) => {
       }
     }
 
+    const payingMap: Record<string, number> = {};
+    payingCampaignRows.forEach((r: any) => {
+      if (r.campaign_id) payingMap[r.campaign_id] = r.paying_users || 0;
+    });
+
     // Merge App Backend signup stats with local database campaigns
     const campaignsWithStats = dbResult.rows.map((row: any) => {
       const appCamp = appCampaigns.find((ac: any) => ac.campaign_id === row.campaign_id);
@@ -93,11 +136,13 @@ router.get('/:orgId', async (req: Request, res: Response) => {
       // Real signups = local DB attributions + App Backend signups
       const totalSignups = (row.signups_count || 0) + appSignups;
       const totalInstalls = (row.installs_count || 0) + appSignups; // simplify installs = signups for now
+      const payingUsers = payingMap[row.campaign_id] || 0;
 
       return {
         ...row,
         installs_count: totalInstalls,
-        signups_count: totalSignups
+        signups_count: totalSignups,
+        paying_users: payingUsers
       };
     });
 

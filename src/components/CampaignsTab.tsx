@@ -236,7 +236,7 @@ export const CampaignsTab: React.FC<CampaignsTabProps> = ({
                   <th>Scans</th>
                   <th>Installs</th>
                   <th>Signups</th>
-                  <th>Revenue</th>
+                  <th>Paying Users</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
@@ -273,7 +273,7 @@ export const CampaignsTab: React.FC<CampaignsTabProps> = ({
                     <td>{camp.installs_count.toLocaleString()}</td>
                     <td>{camp.signups_count.toLocaleString()}</td>
                     <td style={{ color: '#10b981', fontWeight: '600' }}>
-                      ₹{camp.revenue.toLocaleString()}
+                      {(camp.paying_users || 0).toLocaleString()}
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>

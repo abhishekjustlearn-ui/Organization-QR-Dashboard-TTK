@@ -1,10 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  TrendingUp,
   QrCode,
   Download,
   UserCheck,
-  ArrowRight,
   Smartphone,
   ShieldCheck,
   Calendar,
@@ -193,10 +191,6 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
             </div>
           </div>
           <span className="kpi-value">{summary.totalScans.toLocaleString()}</span>
-          <div className="kpi-change positive">
-            <TrendingUp size={14} />
-            <span>+14.2% from last month</span>
-          </div>
         </div>
 
         <div className="glass-card kpi-card">
@@ -207,10 +201,6 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
             </div>
           </div>
           <span className="kpi-value">{summary.totalInstalls.toLocaleString()}</span>
-          <div className="kpi-change positive">
-            <TrendingUp size={14} />
-            <span>+11.8% from last month</span>
-          </div>
         </div>
 
         <div className="glass-card kpi-card">
@@ -221,10 +211,6 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
             </div>
           </div>
           <span className="kpi-value">{summary.totalSignups.toLocaleString()}</span>
-          <div className="kpi-change positive">
-            <TrendingUp size={14} />
-            <span>+18.5% from last month</span>
-          </div>
         </div>
 
         <div className="glass-card kpi-card">
@@ -235,10 +221,6 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
             </div>
           </div>
           <span className="kpi-value">{(summary.totalPayingUsers ?? 0).toLocaleString()}</span>
-          <div className="kpi-change positive">
-            <TrendingUp size={14} />
-            <span>Verified via App DB</span>
-          </div>
         </div>
       </div>
 
@@ -383,14 +365,6 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
                       <span style={styles.funnelCount}>{stage.count.toLocaleString()}</span>
                     </div>
                   </div>
-                  {idx < 3 && (
-                    <div style={styles.conversionArrow}>
-                      <ArrowRight size={12} style={{ color: 'var(--text-muted)' }} />
-                      <span style={styles.arrowText}>
-                        {funnelWithPayingUsers[idx + 1].percentage}% conv.
-                      </span>
-                    </div>
-                  )}
                 </div>
               );
             })}

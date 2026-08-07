@@ -17,6 +17,7 @@ export interface Campaign {
   installs_count: number;
   signups_count: number;
   revenue: number;
+  paying_users?: number;
   qr_config?: string; // JSON configuration of styled QR code
   status?: 'active' | 'inactive';
 }
