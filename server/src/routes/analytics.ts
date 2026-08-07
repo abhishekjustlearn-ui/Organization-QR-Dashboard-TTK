@@ -16,7 +16,8 @@ const APP_BACKEND_URL = process.env.APP_BACKEND_URL || 'https://talk-to-krishna-
 // Key confirmed by App Team: 3f9935bb09f6bfec76b18a70561a676a7dee894aabec7c26b1a57c1d420edbf6
 const PARTNER_ATTRIBUTION_ADMIN_KEY = process.env.PARTNER_ATTRIBUTION_ADMIN_KEY || '';
 
-// Helper: HTTP GET with auth header + 20s timeout — handles Render cold starts
+// Helper: HTTP GET with auth header + 8s timeout
+// NOTE: Vercel free tier kills functions after 10s — keep this under 10s
 const fetchJson = (url: string, headers: Record<string, string> = {}): Promise<any | null> => {
   return new Promise((resolve) => {
     const lib = url.startsWith('https') ? https : http;
@@ -25,7 +26,7 @@ const fetchJson = (url: string, headers: Record<string, string> = {}): Promise<a
       hostname: parsedUrl.hostname,
       path: parsedUrl.pathname + parsedUrl.search,
       method: 'GET',
-      timeout: 20000,   // 20s — enough for Render cold start
+      timeout: 8000,   // 8s — safe within Vercel's 10s function limit
       headers
     };
     const req = lib.request(options, (res) => {
