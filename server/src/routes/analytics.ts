@@ -9,13 +9,14 @@ const router = Router();
 // App Backend base URL — set APP_BACKEND_URL in .env / Vercel environment vars
 // e.g. APP_BACKEND_URL=https://talktokrishna-backend.onrender.com
 // ─────────────────────────────────────────────────────────────────────────────
-// Production URL confirmed by App Team handoff document
-const APP_BACKEND_URL = process.env.APP_BACKEND_URL || 'https://talk-to-krishna-india-1.onrender.com';
+// Production URL confirmed by App Team deployment email (Aug 7)
+const APP_BACKEND_URL = process.env.APP_BACKEND_URL || 'https://talk-to-krishna-backend.onrender.com';
 
-// Auth key required by App Backend's stats endpoint (set in Vercel env vars)
+// Auth key — set PARTNER_ATTRIBUTION_ADMIN_KEY in Vercel env vars
+// Key confirmed by App Team: 3f9935bb09f6bfec76b18a70561a676a7dee894aabec7c26b1a57c1d420edbf6
 const PARTNER_ATTRIBUTION_ADMIN_KEY = process.env.PARTNER_ATTRIBUTION_ADMIN_KEY || '';
 
-// Helper: HTTP GET with auth header + 5s timeout — returns null on failure so dashboard never crashes
+// Helper: HTTP GET with auth header + 20s timeout — handles Render cold starts
 const fetchJson = (url: string, headers: Record<string, string> = {}): Promise<any | null> => {
   return new Promise((resolve) => {
     const lib = url.startsWith('https') ? https : http;
@@ -24,7 +25,7 @@ const fetchJson = (url: string, headers: Record<string, string> = {}): Promise<a
       hostname: parsedUrl.hostname,
       path: parsedUrl.pathname + parsedUrl.search,
       method: 'GET',
-      timeout: 5000,
+      timeout: 20000,   // 20s — enough for Render cold start
       headers
     };
     const req = lib.request(options, (res) => {
