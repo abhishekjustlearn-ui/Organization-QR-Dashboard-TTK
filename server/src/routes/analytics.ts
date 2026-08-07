@@ -44,10 +44,21 @@ router.get('/:orgId', async (req: Request, res: Response) => {
       'SELECT COUNT(DISTINCT user_id)::int as count FROM payment_events WHERE org_id = $1',
       [orgId]
     );
+    const currencyRes = await query(
+      'SELECT currency FROM payment_events WHERE org_id = $1 LIMIT 1',
+      [orgId]
+    );
 
     const totalScans   = scansRes.rows[0]?.count || 0;
     const totalRevenue = parseFloat(revenueRes.rows[0]?.count) || 0;
     const payingDonors = payingDonorsRes.rows[0]?.count || 0;
+    
+    // Determine currency symbol dynamically (defaults to INR ₹ since Talk to Krishna is primarily India-focused)
+    const currencyCode = currencyRes.rows[0]?.currency || 'INR';
+    let currencySymbol = '₹';
+    if (currencyCode === 'USD') currencySymbol = '$';
+    else if (currencyCode === 'EUR') currencySymbol = '€';
+    else if (currencyCode === 'GBP') currencySymbol = '£';
 
     // ── 2. APP BACKEND — Real Installs & Signups ────────────────────────────
     const appStats = await fetchJson(
@@ -207,7 +218,8 @@ router.get('/:orgId', async (req: Request, res: Response) => {
         totalRevenue,
         payingDonors,
         funnel,
-        appBackendConnected: appStats !== null   // lets frontend show a warning if disconnected
+        appBackendConnected: appStats !== null,   // lets frontend show a warning if disconnected
+        currencySymbol
       },
       timeline: timelineRows,
       logs: formattedLogs,

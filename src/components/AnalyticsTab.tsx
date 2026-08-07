@@ -29,6 +29,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
       totalSignups: number;
       totalRevenue: number;
       funnel: any[];
+      currencySymbol?: string;
     };
     timeline: any[];
     logs: any[];
@@ -133,9 +134,11 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
   }, [dailyData, timelineMetric]);
 
   // Formatter for values
+  const currencySymbol = summary.currencySymbol || '₹';
+
   const formatValue = (val: number) => {
     if (timelineMetric === 'revenue') {
-      return `$${val.toLocaleString()}`;
+      return `${currencySymbol}${val.toLocaleString()}`;
     }
     return val.toLocaleString();
   };
@@ -215,7 +218,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
               <DollarSign size={18} style={{ color: '#10b981' }} />
             </div>
           </div>
-          <span className="kpi-value">${summary.totalRevenue.toLocaleString()}</span>
+          <span className="kpi-value">{currencySymbol}{summary.totalRevenue.toLocaleString()}</span>
           <div className="kpi-change positive">
             <TrendingUp size={14} />
             <span>+24.1% from last month</span>
