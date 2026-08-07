@@ -1,10 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  TrendingUp, 
-  QrCode, 
-  Download, 
-  UserCheck, 
-  DollarSign, 
+import {
+  TrendingUp,
+  QrCode,
+  Download,
+  UserCheck,
   ArrowRight,
   Smartphone,
   ShieldCheck,
@@ -20,6 +19,7 @@ interface AnalyticsTabProps {
 }
 
 export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
+  const [selectedCurrency, setSelectedCurrency] = useState<string>('INR');
   const [timelineMetric, setTimelineMetric] = useState<'scans' | 'installs' | 'signups' | 'revenue'>('scans');
   const [loading, setLoading] = useState(true);
   const [analyticsData, setAnalyticsData] = useState<{
@@ -27,9 +27,9 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
       totalScans: number;
       totalInstalls: number;
       totalSignups: number;
-      totalRevenue: number;
       funnel: any[];
-      currencySymbol?: string;
+      revenueByCurrency?: Record<string, number>;
+      donorsByCurrency?: Record<string, number>;
     };
     timeline: any[];
     logs: any[];
@@ -43,6 +43,17 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
         if (response.ok) {
           const data = await response.json();
           setAnalyticsData(data);
+          
+          // Auto-select first available logged currency if it exists, default to INR
+          if (data.summary?.revenueByCurrency) {
+            const keys = Object.keys(data.summary.revenueByCurrency);
+            const activeKeys = keys.filter(k => (data.summary.revenueByCurrency[k] || 0) > 0);
+            if (activeKeys.length > 0) {
+              if (activeKeys.includes('INR')) setSelectedCurrency('INR');
+              else if (activeKeys.includes('USD')) setSelectedCurrency('USD');
+              else setSelectedCurrency(activeKeys[0]);
+            }
+          }
         }
       } catch (err) {
         console.error('Error fetching analytics from Neon:', err);
@@ -57,13 +68,14 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
     totalScans: 0,
     totalInstalls: 0,
     totalSignups: 0,
-    totalRevenue: 0,
     funnel: [
       { stage: 'QR Scans', count: 0, percentage: 100, overallPercentage: 100 },
       { stage: 'App Installs', count: 0, percentage: 0, overallPercentage: 0 },
       { stage: 'Signups', count: 0, percentage: 0, overallPercentage: 0 },
       { stage: 'Paying Donors', count: 0, percentage: 0, overallPercentage: 0 }
-    ]
+    ],
+    revenueByCurrency: { INR: 0, USD: 0, JPY: 0, RUB: 0 },
+    donorsByCurrency: { INR: 0, USD: 0, JPY: 0, RUB: 0 }
   };
 
   const dailyData = analyticsData?.timeline || [];
@@ -88,13 +100,13 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
     const values = dailyData.map(d => Number(d[timelineMetric]) || 0);
     const maxVal = Math.max(...values, 10);
     const minVal = Math.min(...values, 0);
-    
+
     // Scale helper
     const getX = (index: number) => {
       const step = (chartWidth - padding.left - padding.right) / (dailyData.length - 1);
       return padding.left + index * step;
     };
-    
+
     const getY = (val: number) => {
       const heightRange = chartHeight - padding.top - padding.bottom;
       const valRange = maxVal - minVal;
@@ -105,11 +117,11 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
     // Build path strings
     let linePath = '';
     let areaPath = '';
-    
+
     dailyData.forEach((d, i) => {
       const x = getX(i);
       const y = getY(Number(d[timelineMetric]) || 0);
-      
+
       if (i === 0) {
         linePath = `M ${x} ${y}`;
         areaPath = `M ${x} ${chartHeight - padding.bottom} L ${x} ${y}`;
@@ -117,7 +129,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
         linePath += ` L ${x} ${y}`;
         areaPath += ` L ${x} ${y}`;
       }
-      
+
       if (i === dailyData.length - 1) {
         areaPath += ` L ${x} ${chartHeight - padding.bottom} Z`;
       }
@@ -133,12 +145,26 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
     };
   }, [dailyData, timelineMetric]);
 
-  // Formatter for values
-  const currencySymbol = summary.currencySymbol || '₹';
+  // Helper to resolve currency symbols dynamically based on the 4 supported types
+  const getSymbol = (code: string) => {
+    switch (code.toUpperCase()) {
+      case 'INR': return '₹';
+      case 'USD': return '$';
+      case 'JPY': return '¥';
+      case 'RUB': return '₽';
+      default: return code + ' ';
+    }
+  };
+
+  const revenueMap = summary.revenueByCurrency || { INR: 0, USD: 0, JPY: 0, RUB: 0 };
+  const availableCurrencies = ['INR', 'USD', 'JPY', 'RUB'];
+
+  const currentRevenue = revenueMap[selectedCurrency] || 0;
+  const currentSymbol = getSymbol(selectedCurrency);
 
   const formatValue = (val: number) => {
     if (timelineMetric === 'revenue') {
-      return `${currencySymbol}${val.toLocaleString()}`;
+      return `${currentSymbol}${val.toLocaleString()}`;
     }
     return val.toLocaleString();
   };
@@ -213,12 +239,18 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
 
         <div className="glass-card kpi-card">
           <div style={styles.kpiHeader}>
-            <span className="kpi-title">Revenue (Donations)</span>
-            <div style={{ ...styles.kpiIconWrapper, background: 'rgba(16, 185, 129, 0.1)' }}>
-              <DollarSign size={18} style={{ color: '#10b981' }} />
-            </div>
+            <span className="kpi-title">Revenue ({selectedCurrency})</span>
+            <select
+              value={selectedCurrency}
+              onChange={(e) => setSelectedCurrency(e.target.value)}
+              style={styles.currencySelect}
+            >
+              {availableCurrencies.map(c => (
+                <option key={c} value={c}>{c} ({getSymbol(c)})</option>
+              ))}
+            </select>
           </div>
-          <span className="kpi-value">{currencySymbol}{summary.totalRevenue.toLocaleString()}</span>
+          <span className="kpi-value">{currentSymbol}{currentRevenue.toLocaleString()}</span>
           <div className="kpi-change positive">
             <TrendingUp size={14} />
             <span>+24.1% from last month</span>
@@ -228,7 +260,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
 
       {/* Main Analytics Section: Chart and Funnel */}
       <div className="analytics-main-grid">
-        
+
         {/* Trend Chart */}
         <div className="glass-card" style={styles.chartCard}>
           <div className="chart-title-container">
@@ -265,19 +297,19 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
                 const value = chartMetrics.maxVal - (chartMetrics.maxVal - chartMetrics.minVal) * ratio;
                 return (
                   <g key={index}>
-                    <line 
-                      x1={padding.left} 
-                      y1={y} 
-                      x2={chartWidth - padding.right} 
-                      y2={y} 
-                      stroke="rgba(255, 255, 255, 0.05)" 
+                    <line
+                      x1={padding.left}
+                      y1={y}
+                      x2={chartWidth - padding.right}
+                      y2={y}
+                      stroke="rgba(255, 255, 255, 0.05)"
                       strokeDasharray="4"
                     />
-                    <text 
-                      x={padding.left - 10} 
-                      y={y + 4} 
-                      fill="var(--text-muted)" 
-                      fontSize="10" 
+                    <text
+                      x={padding.left - 10}
+                      y={y + 4}
+                      fill="var(--text-muted)"
+                      fontSize="10"
                       textAnchor="end"
                     >
                       {formatValue(Math.round(value))}
@@ -308,12 +340,12 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
               <path d={chartMetrics.areaPath} fill="url(#chartAreaGradient)" />
 
               {/* Line path */}
-              <path 
-                d={chartMetrics.linePath} 
-                fill="none" 
-                stroke={timelineMetric === 'revenue' ? '#10b981' : 'var(--color-teal-start)'} 
-                strokeWidth="2.5" 
-                strokeLinecap="round" 
+              <path
+                d={chartMetrics.linePath}
+                fill="none"
+                stroke={timelineMetric === 'revenue' ? '#10b981' : 'var(--color-teal-start)'}
+                strokeWidth="2.5"
+                strokeLinecap="round"
                 strokeLinejoin="round"
               />
 
@@ -343,24 +375,24 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
         <div className="glass-card" style={styles.funnelCard}>
           <h3 style={styles.cardTitle}>Conversion Funnel</h3>
           <p style={styles.cardDesc}>Analysis of the user acquisition journey from scans to payments.</p>
-          
+
           <div style={styles.funnelContainer}>
             {summary.funnel.map((stage, idx) => {
               const baseWidth = 100 - idx * 12; // tapered funnel shapes
               return (
                 <div key={idx} style={styles.funnelRow}>
                   <div style={styles.funnelBarContainer}>
-                    <div 
-                      style={{ 
-                        ...styles.funnelBar, 
+                    <div
+                      style={{
+                        ...styles.funnelBar,
                         width: `${baseWidth}%`,
-                        background: idx === 0 
+                        background: idx === 0
                           ? 'linear-gradient(90deg, var(--color-teal-start), var(--color-teal-end))'
                           : idx === 1
-                          ? 'linear-gradient(90deg, var(--accent-purple), #9061f9)'
-                          : idx === 2
-                          ? 'linear-gradient(90deg, var(--accent-gold), #ffd700)'
-                          : 'linear-gradient(90deg, #10b981, #34d399)'
+                            ? 'linear-gradient(90deg, var(--accent-purple), #9061f9)'
+                            : idx === 2
+                              ? 'linear-gradient(90deg, var(--accent-gold), #ffd700)'
+                              : 'linear-gradient(90deg, #10b981, #34d399)'
                       }}
                     >
                       <span style={styles.funnelStageName}>{stage.stage}</span>
@@ -408,48 +440,48 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
             </thead>
             <tbody>
               {activityLogs.map((log) => (
-                  <tr key={log.id} style={styles.logRow}>
-                    <td style={styles.logCell}>
-                      <div style={styles.activityLabelWrapper}>
-                        <span 
-                          style={{
-                            ...styles.activityBadge,
-                            backgroundColor: log.type === 'payment'
-                              ? 'rgba(16, 185, 129, 0.12)'
-                              : log.type === 'signup'
+                <tr key={log.id} style={styles.logRow}>
+                  <td style={styles.logCell}>
+                    <div style={styles.activityLabelWrapper}>
+                      <span
+                        style={{
+                          ...styles.activityBadge,
+                          backgroundColor: log.type === 'payment'
+                            ? 'rgba(16, 185, 129, 0.12)'
+                            : log.type === 'signup'
                               ? 'rgba(245, 158, 11, 0.12)'
                               : log.type === 'install'
-                              ? 'rgba(139, 92, 246, 0.12)'
-                              : 'rgba(0, 242, 254, 0.12)',
-                            color: log.type === 'payment'
-                              ? '#10b981'
-                              : log.type === 'signup'
+                                ? 'rgba(139, 92, 246, 0.12)'
+                                : 'rgba(0, 242, 254, 0.12)',
+                          color: log.type === 'payment'
+                            ? '#10b981'
+                            : log.type === 'signup'
                               ? 'var(--accent-gold)'
                               : log.type === 'install'
-                              ? 'var(--accent-purple)'
-                              : 'var(--color-teal-start)'
-                          }}
-                        >
-                          {log.type.toUpperCase()}
-                        </span>
-                        <span style={styles.activityDetail}>{log.detail}</span>
-                      </div>
-                    </td>
-                    <td style={styles.logCell}>{log.campaign_name}</td>
-                    <td style={styles.logCell}>
-                      <div style={styles.deviceWrapper}>
-                        <Smartphone size={13} style={{ color: 'var(--text-muted)' }} />
-                        <span>{log.device}</span>
-                      </div>
-                    </td>
-                    <td style={styles.logCell}>
-                      <span style={styles.matchMethod}>{log.matched_via}</span>
-                    </td>
-                    <td style={{ ...styles.logCell, textAlign: 'right', color: 'var(--text-muted)' }}>
-                      {log.timestamp}
-                    </td>
-                  </tr>
-                ))}
+                                ? 'var(--accent-purple)'
+                                : 'var(--color-teal-start)'
+                        }}
+                      >
+                        {log.type.toUpperCase()}
+                      </span>
+                      <span style={styles.activityDetail}>{log.detail}</span>
+                    </div>
+                  </td>
+                  <td style={styles.logCell}>{log.campaign_name}</td>
+                  <td style={styles.logCell}>
+                    <div style={styles.deviceWrapper}>
+                      <Smartphone size={13} style={{ color: 'var(--text-muted)' }} />
+                      <span>{log.device}</span>
+                    </div>
+                  </td>
+                  <td style={styles.logCell}>
+                    <span style={styles.matchMethod}>{log.matched_via}</span>
+                  </td>
+                  <td style={{ ...styles.logCell, textAlign: 'right', color: 'var(--text-muted)' }}>
+                    {log.timestamp}
+                  </td>
+                </tr>
+              ))}
               {activityLogs.length === 0 && (
                 <tr>
                   <td colSpan={5} style={styles.noDataCell}>
@@ -698,5 +730,17 @@ const styles: Record<string, React.CSSProperties> = {
   spinner: {
     animation: 'spin 1s linear infinite',
     color: '#ffd700',
+  },
+  currencySelect: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    borderRadius: '6px',
+    color: '#ffffff',
+    fontSize: '0.75rem',
+    fontWeight: '600',
+    padding: '4px 8px',
+    outline: 'none',
+    cursor: 'pointer',
+    fontFamily: 'var(--font-heading)'
   }
 };

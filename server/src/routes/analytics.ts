@@ -36,29 +36,24 @@ router.get('/:orgId', async (req: Request, res: Response) => {
       'SELECT COUNT(*)::int as count FROM click_events WHERE org_id = $1',
       [orgId]
     );
+    // Query revenue and paying donors grouped by currency
     const revenueRes = await query(
-      'SELECT COALESCE(SUM(amount), 0)::float as count FROM payment_events WHERE org_id = $1',
-      [orgId]
-    );
-    const payingDonorsRes = await query(
-      'SELECT COUNT(DISTINCT user_id)::int as count FROM payment_events WHERE org_id = $1',
-      [orgId]
-    );
-    const currencyRes = await query(
-      'SELECT currency FROM payment_events WHERE org_id = $1 LIMIT 1',
+      'SELECT currency, COALESCE(SUM(amount), 0)::float as amount, COUNT(DISTINCT user_id)::int as donors FROM payment_events WHERE org_id = $1 GROUP BY currency',
       [orgId]
     );
 
-    const totalScans   = scansRes.rows[0]?.count || 0;
-    const totalRevenue = parseFloat(revenueRes.rows[0]?.count) || 0;
-    const payingDonors = payingDonorsRes.rows[0]?.count || 0;
-    
-    // Determine currency symbol dynamically (defaults to INR ₹ since Talk to Krishna is primarily India-focused)
-    const currencyCode = currencyRes.rows[0]?.currency || 'INR';
-    let currencySymbol = '₹';
-    if (currencyCode === 'USD') currencySymbol = '$';
-    else if (currencyCode === 'EUR') currencySymbol = '€';
-    else if (currencyCode === 'GBP') currencySymbol = '£';
+    const totalScans = scansRes.rows[0]?.count || 0;
+
+    // Build maps for the 4 supported payment currencies
+    const revenueByCurrency: Record<string, number> = { INR: 0, USD: 0, JPY: 0, RUB: 0 };
+    const donorsByCurrency: Record<string, number> = { INR: 0, USD: 0, JPY: 0, RUB: 0 };
+
+    revenueRes.rows.forEach((row: any) => {
+      const curr = (row.currency || 'INR').toUpperCase();
+      // Ensure we normalize currency keys
+      revenueByCurrency[curr] = row.amount;
+      donorsByCurrency[curr] = row.donors;
+    });
 
     // ── 2. APP BACKEND — Real Installs & Signups ────────────────────────────
     const appStats = await fetchJson(
@@ -67,20 +62,21 @@ router.get('/:orgId', async (req: Request, res: Response) => {
     );
 
     let totalInstalls = 0;
-    let totalSignups  = 0;
+    let totalSignups = 0;
     const campaignBreakdown: any[] = [];
 
     if (appStats && Array.isArray(appStats.by_organization)) {
       const orgData = appStats.by_organization.find((o: any) => o.org_id === orgId);
       if (orgData) {
-        totalSignups  = orgData.org_signups || 0;
+        totalSignups = orgData.org_signups || 0;
         // Until app backend separately tracks install events, installs = signups
         totalInstalls = orgData.org_signups || 0;
         if (Array.isArray(orgData.campaigns)) {
           campaignBreakdown.push(...orgData.campaigns);
         }
       }
-    }
+    // Calculate total distinct paying donors across all currencies for the aggregate stats
+    const payingDonors = Object.values(donorsByCurrency).reduce((sum, val) => sum + val, 0);
 
     // ── 3. Conversion Funnel ────────────────────────────────────────────────
     const funnel = [
@@ -215,11 +211,10 @@ router.get('/:orgId', async (req: Request, res: Response) => {
         totalScans,
         totalInstalls,
         totalSignups,
-        totalRevenue,
-        payingDonors,
         funnel,
         appBackendConnected: appStats !== null,   // lets frontend show a warning if disconnected
-        currencySymbol
+        revenueByCurrency,
+        donorsByCurrency
       },
       timeline: timelineRows,
       logs: formattedLogs,
