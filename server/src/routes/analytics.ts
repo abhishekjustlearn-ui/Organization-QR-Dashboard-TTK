@@ -56,13 +56,34 @@ router.get('/:orgId', async (req: Request, res: Response) => {
     });
 
     // ── 2. APP BACKEND — Real Installs & Signups ────────────────────────────
-    const appStats = await fetchJson(
-      `${APP_BACKEND_URL}/api/stats/attributions?org_id=${encodeURIComponent(orgId)}`,
-      { 'x-partner-attribution-admin-key': PARTNER_ATTRIBUTION_ADMIN_KEY }
-    );
+    // Fetch both attribution aggregates and detailed user list in parallel
+    const [appStats, appUsers] = await Promise.all([
+      fetchJson(
+        `${APP_BACKEND_URL}/api/stats/attributions?org_id=${encodeURIComponent(orgId)}`,
+        { 'x-partner-attribution-admin-key': PARTNER_ATTRIBUTION_ADMIN_KEY }
+      ),
+      fetchJson(
+        `${APP_BACKEND_URL}/api/stats/users?org_id=${encodeURIComponent(orgId)}`,
+        { 'x-partner-attribution-admin-key': PARTNER_ATTRIBUTION_ADMIN_KEY }
+      )
+    ]);
+
+    // Build a map of "Mon DD" date keys to signups count for the trend timeline
+    const signupDatesMap: Record<string, number> = {};
+    if (appUsers && Array.isArray(appUsers.users)) {
+      appUsers.users.forEach((u: any) => {
+        if (u.signup_date) {
+          const d = new Date(u.signup_date);
+          const month = d.toLocaleString('en-US', { month: 'short' });
+          const day = d.getDate();
+          const key = `${month} ${String(day).padStart(2, '0')}`;
+          signupDatesMap[key] = (signupDatesMap[key] || 0) + 1;
+        }
+      });
+    }
 
     let totalInstalls = 0;
-    let totalSignups = 0;
+    let totalSignups  = 0;
     const campaignBreakdown: any[] = [];
 
     if (appStats && Array.isArray(appStats.by_organization)) {
@@ -75,6 +96,7 @@ router.get('/:orgId', async (req: Request, res: Response) => {
           campaignBreakdown.push(...orgData.campaigns);
         }
       }
+    }
     // Calculate total distinct paying donors across all currencies for the aggregate stats
     const payingDonors = Object.values(donorsByCurrency).reduce((sum, val) => sum + val, 0);
 
@@ -127,14 +149,18 @@ router.get('/:orgId', async (req: Request, res: Response) => {
     `;
     const timelineRes = await query(timelineQuery, [orgId]);
 
-    // installs/signups at day-level: placeholder 0s until app backend exposes day-level endpoint
-    const timelineRows = timelineRes.rows.map((row: any) => ({
-      date: row.date,
-      scans: row.scans,
-      installs: 0,
-      signups: 0,
-      revenue: row.revenue
-    }));
+    // Populate actual installs & signups trends dynamically from our user list signup_date map
+    const timelineRows = timelineRes.rows.map((row: any) => {
+      const dateKey = row.date; // format "Mon DD"
+      const signupsCount = signupDatesMap[dateKey] || 0;
+      return {
+        date: row.date,
+        scans: row.scans,
+        installs: signupsCount,
+        signups: signupsCount,
+        revenue: row.revenue
+      };
+    });
 
     // ── 5. Live Activity Log ────────────────────────────────────────────────
     const logQuery = `
