@@ -1,15 +1,20 @@
 import React, { useState } from 'react';
 import { Save } from 'lucide-react';
-import { Organization } from '../mockData';
+import { Organization, SubAdminPermissions, DEFAULT_PERMISSIONS } from '../mockData';
 import { API_BASE } from '../config';
 
 interface OrgSettingsTabProps {
   organization: Organization;
+  permissions?: SubAdminPermissions;
 }
 
 export const OrgSettingsTab: React.FC<OrgSettingsTabProps> = ({
   organization,
+  permissions,
 }) => {
+  const effectivePerms = permissions || DEFAULT_PERMISSIONS;
+  const canEdit = effectivePerms.settings.editProfile;
+
   const [name, setName] = useState(organization.org_name);
   const [email, setEmail] = useState(organization.contact_email);
   const [phone, setPhone] = useState(organization.contact_phone);
@@ -17,6 +22,7 @@ export const OrgSettingsTab: React.FC<OrgSettingsTabProps> = ({
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEdit) return;
     try {
       const response = await fetch(`${API_BASE}/api/orgs/${organization.org_id}`, {
         method: 'PUT',
@@ -51,7 +57,22 @@ export const OrgSettingsTab: React.FC<OrgSettingsTabProps> = ({
 
       <div style={styles.centeredContent}>
         <div className="glass-card" style={styles.settingsCard}>
-          <h3 style={styles.cardTitle}>Basic Configuration</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <h3 style={styles.cardTitle}>Basic Configuration</h3>
+            {!canEdit && (
+              <span style={{ 
+                fontSize: '0.75rem', 
+                fontWeight: '600', 
+                color: '#f59e0b', 
+                backgroundColor: 'rgba(245, 158, 11, 0.1)', 
+                border: '1px solid rgba(245, 158, 11, 0.2)', 
+                borderRadius: '6px', 
+                padding: '3px 8px' 
+              }}>
+                🔒 Read-Only
+              </span>
+            )}
+          </div>
           <p style={styles.cardDesc}>Specify details matching this organization’s legal contact profile.</p>
 
           <form onSubmit={handleSave}>
@@ -62,6 +83,8 @@ export const OrgSettingsTab: React.FC<OrgSettingsTabProps> = ({
                 className="form-input"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                disabled={!canEdit}
+                style={!canEdit ? { opacity: 0.7, cursor: 'not-allowed' } : {}}
                 required
               />
             </div>
@@ -73,6 +96,8 @@ export const OrgSettingsTab: React.FC<OrgSettingsTabProps> = ({
                 className="form-input"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={!canEdit}
+                style={!canEdit ? { opacity: 0.7, cursor: 'not-allowed' } : {}}
                 required
               />
             </div>
@@ -84,15 +109,23 @@ export const OrgSettingsTab: React.FC<OrgSettingsTabProps> = ({
                 className="form-input"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
+                disabled={!canEdit}
+                style={!canEdit ? { opacity: 0.7, cursor: 'not-allowed' } : {}}
                 required
               />
             </div>
 
             <div style={styles.formActions}>
-              <button type="submit" className="btn-primary" style={styles.saveBtn}>
-                <Save size={16} />
-                <span>{saved ? 'Settings Saved!' : 'Save Changes'}</span>
-              </button>
+              {canEdit ? (
+                <button type="submit" className="btn-primary" style={styles.saveBtn}>
+                  <Save size={16} />
+                  <span>{saved ? 'Settings Saved!' : 'Save Changes'}</span>
+                </button>
+              ) : (
+                <div style={{ width: '100%', textAlign: 'center', padding: '8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  Edits to organization details are restricted by Super-Admin.
+                </div>
+              )}
             </div>
           </form>
         </div>

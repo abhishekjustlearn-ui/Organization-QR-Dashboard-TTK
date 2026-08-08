@@ -8,15 +8,17 @@ import {
   Calendar,
   Loader2
 } from 'lucide-react';
-import { Organization, Campaign } from '../mockData';
+import { Organization, Campaign, SubAdminPermissions, DEFAULT_PERMISSIONS } from '../mockData';
 import { API_BASE } from '../config';
 
 interface AnalyticsTabProps {
   organization: Organization;
   campaigns: Campaign[];
+  permissions?: SubAdminPermissions;
 }
 
-export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
+export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization, permissions }) => {
+  const effectivePerms = permissions || DEFAULT_PERMISSIONS;
   const [timelineMetric, setTimelineMetric] = useState<'scans' | 'installs' | 'signups' | 'paying'>('scans');
   const [loading, setLoading] = useState(true);
   const [analyticsData, setAnalyticsData] = useState<{
@@ -33,6 +35,20 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
     logs: any[];
   } | null>(null);
 
+  // Compute allowed metrics for trend graph
+  const allowedGraphMetrics = useMemo(() => {
+    return (['scans', 'installs', 'signups', 'paying'] as const).filter(
+      (m) => effectivePerms.analytics.graph[m]
+    );
+  }, [effectivePerms]);
+
+  // Ensure current active timeline metric is within allowed permissions
+  useEffect(() => {
+    if (allowedGraphMetrics.length > 0 && !allowedGraphMetrics.includes(timelineMetric)) {
+      setTimelineMetric(allowedGraphMetrics[0]);
+    }
+  }, [allowedGraphMetrics, timelineMetric]);
+
   useEffect(() => {
     const fetchAnalytics = async () => {
       setLoading(true);
@@ -41,7 +57,6 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
         if (response.ok) {
           const data = await response.json();
           setAnalyticsData(data);
-          
         }
       } catch (err) {
         console.error('Error fetching analytics from Neon:', err);
@@ -67,22 +82,32 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
     donorsByCurrency: { INR: 0, USD: 0, JPY: 0, RUB: 0 }
   };
 
-  // Override the last funnel stage with accurate totalPayingUsers from App DB
-  const funnelWithPayingUsers = summary.funnel.map((stage: any, idx: number) =>
-    idx === summary.funnel.length - 1
-      ? {
-          ...stage,
-          stage: 'Paying Users',
-          count: summary.totalPayingUsers ?? stage.count,
-          percentage: summary.totalScans > 0
-            ? Math.round(((summary.totalPayingUsers ?? 0) / summary.totalScans) * 100)
-            : 0,
-          overallPercentage: summary.totalScans > 0
-            ? Math.round(((summary.totalPayingUsers ?? 0) / summary.totalScans) * 100)
-            : 0
-        }
-      : stage
-  );
+  // Override the last funnel stage with accurate totalPayingUsers from App DB and filter by permissions
+  const funnelWithPayingUsers = useMemo(() => {
+    const mapped = summary.funnel.map((stage: any, idx: number) =>
+      idx === summary.funnel.length - 1
+        ? {
+            ...stage,
+            stage: 'Paying Users',
+            count: summary.totalPayingUsers ?? stage.count,
+            percentage: summary.totalScans > 0
+              ? Math.round(((summary.totalPayingUsers ?? 0) / summary.totalScans) * 100)
+              : 0,
+            overallPercentage: summary.totalScans > 0
+              ? Math.round(((summary.totalPayingUsers ?? 0) / summary.totalScans) * 100)
+              : 0
+          }
+        : stage
+    );
+
+    return mapped.filter((stage: any) => {
+      if (stage.stage === 'QR Scans') return effectivePerms.analytics.funnel.scans;
+      if (stage.stage === 'App Installs') return effectivePerms.analytics.funnel.installs;
+      if (stage.stage === 'Signups') return effectivePerms.analytics.funnel.signups;
+      if (stage.stage === 'Paying Users') return effectivePerms.analytics.funnel.paying;
+      return true;
+    });
+  }, [summary, effectivePerms]);
 
   const dailyData = analyticsData?.timeline || [];
   const activityLogs = analyticsData?.logs || [];
@@ -183,274 +208,288 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ organization }) => {
 
       {/* KPI Cards Grid */}
       <div className="kpi-grid">
-        <div className="glass-card kpi-card">
-          <div style={styles.kpiHeader}>
-            <span className="kpi-title">Total Scans</span>
-            <div style={{ ...styles.kpiIconWrapper, background: 'rgba(0, 242, 254, 0.1)' }}>
-              <QrCode size={18} style={{ color: 'var(--color-teal-start)' }} />
+        {effectivePerms.analytics.metrics.scans && (
+          <div className="glass-card kpi-card">
+            <div style={styles.kpiHeader}>
+              <span className="kpi-title">Total Scans</span>
+              <div style={{ ...styles.kpiIconWrapper, background: 'rgba(0, 242, 254, 0.1)' }}>
+                <QrCode size={18} style={{ color: 'var(--color-teal-start)' }} />
+              </div>
             </div>
+            <span className="kpi-value">{summary.totalScans.toLocaleString()}</span>
           </div>
-          <span className="kpi-value">{summary.totalScans.toLocaleString()}</span>
-        </div>
+        )}
 
-        <div className="glass-card kpi-card">
-          <div style={styles.kpiHeader}>
-            <span className="kpi-title">App Installs</span>
-            <div style={{ ...styles.kpiIconWrapper, background: 'rgba(139, 92, 246, 0.1)' }}>
-              <Download size={18} style={{ color: 'var(--accent-purple)' }} />
+        {effectivePerms.analytics.metrics.installs && (
+          <div className="glass-card kpi-card">
+            <div style={styles.kpiHeader}>
+              <span className="kpi-title">App Installs</span>
+              <div style={{ ...styles.kpiIconWrapper, background: 'rgba(139, 92, 246, 0.1)' }}>
+                <Download size={18} style={{ color: 'var(--accent-purple)' }} />
+              </div>
             </div>
+            <span className="kpi-value">{summary.totalInstalls.toLocaleString()}</span>
           </div>
-          <span className="kpi-value">{summary.totalInstalls.toLocaleString()}</span>
-        </div>
+        )}
 
-        <div className="glass-card kpi-card">
-          <div style={styles.kpiHeader}>
-            <span className="kpi-title">Signups</span>
-            <div style={{ ...styles.kpiIconWrapper, background: 'rgba(245, 158, 11, 0.1)' }}>
-              <UserCheck size={18} style={{ color: 'var(--accent-gold)' }} />
+        {effectivePerms.analytics.metrics.signups && (
+          <div className="glass-card kpi-card">
+            <div style={styles.kpiHeader}>
+              <span className="kpi-title">Signups</span>
+              <div style={{ ...styles.kpiIconWrapper, background: 'rgba(245, 158, 11, 0.1)' }}>
+                <UserCheck size={18} style={{ color: 'var(--accent-gold)' }} />
+              </div>
             </div>
+            <span className="kpi-value">{summary.totalSignups.toLocaleString()}</span>
           </div>
-          <span className="kpi-value">{summary.totalSignups.toLocaleString()}</span>
-        </div>
+        )}
 
-        <div className="glass-card kpi-card">
-          <div style={styles.kpiHeader}>
-            <span className="kpi-title">Paying Users</span>
-            <div style={{ ...styles.kpiIconWrapper, background: 'rgba(16, 185, 129, 0.1)' }}>
-              <ShieldCheck size={18} style={{ color: '#10b981' }} />
+        {effectivePerms.analytics.metrics.paying && (
+          <div className="glass-card kpi-card">
+            <div style={styles.kpiHeader}>
+              <span className="kpi-title">Paying Users</span>
+              <div style={{ ...styles.kpiIconWrapper, background: 'rgba(16, 185, 129, 0.1)' }}>
+                <ShieldCheck size={18} style={{ color: '#10b981' }} />
+              </div>
             </div>
+            <span className="kpi-value">{(summary.totalPayingUsers ?? 0).toLocaleString()}</span>
           </div>
-          <span className="kpi-value">{(summary.totalPayingUsers ?? 0).toLocaleString()}</span>
-        </div>
+        )}
       </div>
 
       {/* Main Analytics Section: Chart and Funnel */}
       <div className="analytics-main-grid">
 
         {/* Trend Chart */}
-        <div className="glass-card" style={styles.chartCard}>
-          <div className="chart-title-container">
-            <h3 style={styles.cardTitle}>Acquisition Trends</h3>
-            <div className="chart-toggle-group">
-              {(['scans', 'installs', 'signups', 'paying'] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setTimelineMetric(m)}
-                  style={{
-                    ...styles.toggleBtn,
-                    ...(timelineMetric === m ? styles.toggleBtnActive : {})
-                  }}
-                >
-                  {m === 'paying' ? 'Paying Users' : m.charAt(0).toUpperCase() + m.slice(1)}
-                </button>
-              ))}
+        {allowedGraphMetrics.length > 0 && (
+          <div className="glass-card" style={styles.chartCard}>
+            <div className="chart-title-container">
+              <h3 style={styles.cardTitle}>Acquisition Trends</h3>
+              <div className="chart-toggle-group">
+                {allowedGraphMetrics.map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setTimelineMetric(m)}
+                    style={{
+                      ...styles.toggleBtn,
+                      ...(timelineMetric === m ? styles.toggleBtnActive : {})
+                    }}
+                  >
+                    {m === 'paying' ? 'Paying Users' : m.charAt(0).toUpperCase() + m.slice(1)}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* SVG Custom Line Chart */}
-          <div style={styles.chartWrapper}>
-            <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} style={styles.svgChart}>
-              <defs>
-                <linearGradient id="chartAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={timelineMetric === 'paying' ? '#10b981' : 'var(--color-teal-start)'} stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="transparent" stopOpacity="0" />
-                </linearGradient>
-              </defs>
+            {/* SVG Custom Line Chart */}
+            <div style={styles.chartWrapper}>
+              <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} style={styles.svgChart}>
+                <defs>
+                  <linearGradient id="chartAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={timelineMetric === 'paying' ? '#10b981' : 'var(--color-teal-start)'} stopOpacity="0.25" />
+                    <stop offset="100%" stopColor="transparent" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
 
-              {/* Grid Lines */}
-              {[0, 0.25, 0.5, 0.75, 1].map((ratio, index) => {
-                const y = padding.top + (chartHeight - padding.top - padding.bottom) * ratio;
-                const value = chartMetrics.maxVal - (chartMetrics.maxVal - chartMetrics.minVal) * ratio;
-                return (
-                  <g key={index}>
-                    <line
-                      x1={padding.left}
-                      y1={y}
-                      x2={chartWidth - padding.right}
-                      y2={y}
-                      stroke="rgba(255, 255, 255, 0.05)"
-                      strokeDasharray="4"
-                    />
+                {/* Grid Lines */}
+                {[0, 0.25, 0.5, 0.75, 1].map((ratio, index) => {
+                  const y = padding.top + (chartHeight - padding.top - padding.bottom) * ratio;
+                  const value = chartMetrics.maxVal - (chartMetrics.maxVal - chartMetrics.minVal) * ratio;
+                  return (
+                    <g key={index}>
+                      <line
+                        x1={padding.left}
+                        y1={y}
+                        x2={chartWidth - padding.right}
+                        y2={y}
+                        stroke="rgba(255, 255, 255, 0.05)"
+                        strokeDasharray="4"
+                      />
+                      <text
+                        x={padding.left - 10}
+                        y={y + 4}
+                        fill="var(--text-muted)"
+                        fontSize="10"
+                        textAnchor="end"
+                      >
+                        {formatValue(Math.round(value))}
+                      </text>
+                    </g>
+                  );
+                })}
+
+                {/* X Axis Labels (sample days) */}
+                {dailyData.filter((_, idx) => idx % 6 === 0).map((d, index) => {
+                  const idx = index * 6;
+                  const x = chartMetrics.getX(idx);
+                  return (
                     <text
-                      x={padding.left - 10}
-                      y={y + 4}
+                      key={idx}
+                      x={x}
+                      y={chartHeight - 10}
                       fill="var(--text-muted)"
                       fontSize="10"
-                      textAnchor="end"
+                      textAnchor="middle"
                     >
-                      {formatValue(Math.round(value))}
+                      {d.date}
                     </text>
-                  </g>
-                );
-              })}
+                  );
+                })}
 
-              {/* X Axis Labels (sample days) */}
-              {dailyData.filter((_, idx) => idx % 6 === 0).map((d, index) => {
-                const idx = index * 6;
-                const x = chartMetrics.getX(idx);
-                return (
-                  <text
-                    key={idx}
-                    x={x}
-                    y={chartHeight - 10}
-                    fill="var(--text-muted)"
-                    fontSize="10"
-                    textAnchor="middle"
-                  >
-                    {d.date}
-                  </text>
-                );
-              })}
+                {/* Gradient Area Fill */}
+                <path d={chartMetrics.areaPath} fill="url(#chartAreaGradient)" />
 
-              {/* Gradient Area Fill */}
-              <path d={chartMetrics.areaPath} fill="url(#chartAreaGradient)" />
+                {/* Line path */}
+                <path
+                  d={chartMetrics.linePath}
+                  fill="none"
+                  stroke={timelineMetric === 'paying' ? '#10b981' : 'var(--color-teal-start)'}
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
 
-              {/* Line path */}
-              <path
-                d={chartMetrics.linePath}
-                fill="none"
-                stroke={timelineMetric === 'paying' ? '#10b981' : 'var(--color-teal-start)'}
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-
-              {/* Dots on line */}
-              {dailyData.filter((_, idx) => idx % 2 === 0).map((d, i) => {
-                const idx = i * 2;
-                const x = chartMetrics.getX(idx);
-                const y = chartMetrics.getY(d[timelineMetric]);
-                return (
-                  <circle
-                    key={idx}
-                    cx={x}
-                    cy={y}
-                    r="4"
-                    fill="#080916"
-                    stroke={timelineMetric === 'paying' ? '#10b981' : 'var(--color-teal-start)'}
-                    strokeWidth="2"
-                    style={{ cursor: 'pointer' }}
-                  />
-                );
-              })}
-            </svg>
+                {/* Dots on line */}
+                {dailyData.filter((_, idx) => idx % 2 === 0).map((d, i) => {
+                  const idx = i * 2;
+                  const x = chartMetrics.getX(idx);
+                  const y = chartMetrics.getY(d[timelineMetric]);
+                  return (
+                    <circle
+                      key={idx}
+                      cx={x}
+                      cy={y}
+                      r="4"
+                      fill="#080916"
+                      stroke={timelineMetric === 'paying' ? '#10b981' : 'var(--color-teal-start)'}
+                      strokeWidth="2"
+                      style={{ cursor: 'pointer' }}
+                    />
+                  );
+                })}
+              </svg>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Conversion Funnel */}
-        <div className="glass-card" style={styles.funnelCard}>
-          <h3 style={styles.cardTitle}>Conversion Funnel</h3>
-          <p style={styles.cardDesc}>Analysis of the user acquisition journey from scans to payments.</p>
+        {funnelWithPayingUsers.length > 0 && (
+          <div className="glass-card" style={styles.funnelCard}>
+            <h3 style={styles.cardTitle}>Conversion Funnel</h3>
+            <p style={styles.cardDesc}>Analysis of the user acquisition journey from scans to payments.</p>
 
-          <div style={styles.funnelContainer}>
-            {funnelWithPayingUsers.map((stage, idx) => {
-              const baseWidth = 100 - idx * 12; // tapered funnel shapes
-              return (
-                <div key={idx} style={styles.funnelRow}>
-                  <div style={styles.funnelBarContainer}>
-                    <div
-                      style={{
-                        ...styles.funnelBar,
-                        width: `${baseWidth}%`,
-                        background: idx === 0
-                          ? 'linear-gradient(90deg, var(--color-teal-start), var(--color-teal-end))'
-                          : idx === 1
-                            ? 'linear-gradient(90deg, var(--accent-purple), #9061f9)'
-                            : idx === 2
-                              ? 'linear-gradient(90deg, var(--accent-gold), #ffd700)'
-                              : 'linear-gradient(90deg, #10b981, #34d399)'
-                      }}
-                    >
-                      <span style={styles.funnelStageName}>{stage.stage}</span>
-                      <span style={styles.funnelCount}>{stage.count.toLocaleString()}</span>
+            <div style={styles.funnelContainer}>
+              {funnelWithPayingUsers.map((stage: any, idx: number) => {
+                const baseWidth = 100 - idx * 12; // tapered funnel shapes
+                return (
+                  <div key={idx} style={styles.funnelRow}>
+                    <div style={styles.funnelBarContainer}>
+                      <div
+                        style={{
+                          ...styles.funnelBar,
+                          width: `${baseWidth}%`,
+                          background: idx === 0
+                            ? 'linear-gradient(90deg, var(--color-teal-start), var(--color-teal-end))'
+                            : idx === 1
+                              ? 'linear-gradient(90deg, var(--accent-purple), #9061f9)'
+                              : idx === 2
+                                ? 'linear-gradient(90deg, var(--accent-gold), #ffd700)'
+                                : 'linear-gradient(90deg, #10b981, #34d399)'
+                        }}
+                      >
+                        <span style={styles.funnelStageName}>{stage.stage}</span>
+                        <span style={styles.funnelCount}>{stage.count.toLocaleString()}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Activity Log / Acquisition Events */}
-      <div className="glass-card" style={styles.logCard}>
-        <div style={styles.logHeader}>
-          <div>
-            <h3 style={styles.cardTitle}>Live Attribution Log</h3>
-            <p style={styles.cardDesc}>Recent app downloads and signup activities routed through your QR campaigns.</p>
+      {effectivePerms.analytics.activityLog && (
+        <div className="glass-card" style={styles.logCard}>
+          <div style={styles.logHeader}>
+            <div>
+              <h3 style={styles.cardTitle}>Live Attribution Log</h3>
+              <p style={styles.cardDesc}>Recent app downloads and signup activities routed through your QR campaigns.</p>
+            </div>
+            <div style={styles.securityBadge}>
+              <ShieldCheck size={14} style={{ color: '#10b981' }} />
+              <span>Encrypted Fingerprints Matched</span>
+            </div>
           </div>
-          <div style={styles.securityBadge}>
-            <ShieldCheck size={14} style={{ color: '#10b981' }} />
-            <span>Encrypted Fingerprints Matched</span>
-          </div>
-        </div>
 
-        <div style={styles.logTableWrapper}>
-          <table style={styles.logTable}>
-            <thead>
-              <tr style={styles.logTableHeaderRow}>
-                <th style={styles.logTableHeaderCell}>Activity</th>
-                <th style={styles.logTableHeaderCell}>Campaign</th>
-                <th style={styles.logTableHeaderCell}>Device</th>
-                <th style={styles.logTableHeaderCell}>Attribution Method</th>
-                <th style={{ ...styles.logTableHeaderCell, textAlign: 'right' }}>Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {activityLogs.map((log) => (
-                <tr key={log.id} style={styles.logRow}>
-                  <td style={styles.logCell}>
-                    <div style={styles.activityLabelWrapper}>
-                      <span
-                        style={{
-                          ...styles.activityBadge,
-                          backgroundColor: log.type === 'payment'
-                            ? 'rgba(16, 185, 129, 0.12)'
-                            : log.type === 'signup'
-                              ? 'rgba(245, 158, 11, 0.12)'
-                              : log.type === 'install'
-                                ? 'rgba(139, 92, 246, 0.12)'
-                                : 'rgba(0, 242, 254, 0.12)',
-                          color: log.type === 'payment'
-                            ? '#10b981'
-                            : log.type === 'signup'
-                              ? 'var(--accent-gold)'
-                              : log.type === 'install'
-                                ? 'var(--accent-purple)'
-                                : 'var(--color-teal-start)'
-                        }}
-                      >
-                        {log.type.toUpperCase()}
-                      </span>
-                      <span style={styles.activityDetail}>{log.detail}</span>
-                    </div>
-                  </td>
-                  <td style={styles.logCell}>{log.campaign_name}</td>
-                  <td style={styles.logCell}>
-                    <div style={styles.deviceWrapper}>
-                      <Smartphone size={13} style={{ color: 'var(--text-muted)' }} />
-                      <span>{log.device}</span>
-                    </div>
-                  </td>
-                  <td style={styles.logCell}>
-                    <span style={styles.matchMethod}>{log.matched_via}</span>
-                  </td>
-                  <td style={{ ...styles.logCell, textAlign: 'right', color: 'var(--text-muted)' }}>
-                    {log.timestamp}
-                  </td>
+          <div style={styles.logTableWrapper}>
+            <table style={styles.logTable}>
+              <thead>
+                <tr style={styles.logTableHeaderRow}>
+                  <th style={styles.logTableHeaderCell}>Activity</th>
+                  <th style={styles.logTableHeaderCell}>Campaign</th>
+                  <th style={styles.logTableHeaderCell}>Device</th>
+                  <th style={styles.logTableHeaderCell}>Attribution Method</th>
+                  <th style={{ ...styles.logTableHeaderCell, textAlign: 'right' }}>Time</th>
                 </tr>
-              ))}
-              {activityLogs.length === 0 && (
-                <tr>
-                  <td colSpan={5} style={styles.noDataCell}>
-                    No recent events for this organization. Generate a QR code to start tracking!
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {activityLogs.map((log) => (
+                  <tr key={log.id} style={styles.logRow}>
+                    <td style={styles.logCell}>
+                      <div style={styles.activityLabelWrapper}>
+                        <span
+                          style={{
+                            ...styles.activityBadge,
+                            backgroundColor: log.type === 'payment'
+                              ? 'rgba(16, 185, 129, 0.12)'
+                              : log.type === 'signup'
+                                ? 'rgba(245, 158, 11, 0.12)'
+                                : log.type === 'install'
+                                  ? 'rgba(139, 92, 246, 0.12)'
+                                  : 'rgba(0, 242, 254, 0.12)',
+                            color: log.type === 'payment'
+                              ? '#10b981'
+                              : log.type === 'signup'
+                                ? 'var(--accent-gold)'
+                                : log.type === 'install'
+                                  ? 'var(--accent-purple)'
+                                  : 'var(--color-teal-start)'
+                          }}
+                        >
+                          {log.type.toUpperCase()}
+                        </span>
+                        <span style={styles.activityDetail}>{log.detail}</span>
+                      </div>
+                    </td>
+                    <td style={styles.logCell}>{log.campaign_name}</td>
+                    <td style={styles.logCell}>
+                      <div style={styles.deviceWrapper}>
+                        <Smartphone size={13} style={{ color: 'var(--text-muted)' }} />
+                        <span>{log.device}</span>
+                      </div>
+                    </td>
+                    <td style={styles.logCell}>
+                      <span style={styles.matchMethod}>{log.matched_via}</span>
+                    </td>
+                    <td style={{ ...styles.logCell, textAlign: 'right', color: 'var(--text-muted)' }}>
+                      {log.timestamp}
+                    </td>
+                  </tr>
+                ))}
+                {activityLogs.length === 0 && (
+                  <tr>
+                    <td colSpan={5} style={styles.noDataCell}>
+                      No recent events for this organization. Generate a QR code to start tracking!
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

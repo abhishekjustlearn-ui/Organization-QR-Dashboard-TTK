@@ -2,12 +2,15 @@ import React, { useState } from 'react';
 import { Sparkles, Eye, EyeOff, Lock, Mail, AlertCircle, RefreshCw } from 'lucide-react';
 import { API_BASE } from '../config';
 
+import { SubAdminPermissions } from '../mockData';
+
 interface LoginProps {
   onLoginSuccess: (
     role: 'super-admin' | 'sub-admin',
     username: string,
     orgId: string,
-    displayName: string
+    displayName: string,
+    permissions?: SubAdminPermissions
   ) => void;
 }
 
@@ -37,7 +40,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       }
 
       setIsLoading(false);
-      onLoginSuccess(data.role, data.username, data.orgId, data.displayName);
+      onLoginSuccess(data.role, data.username, data.orgId, data.displayName, data.permissions);
     } catch (err: any) {
       setIsLoading(false);
       setError(err.message || 'Connection failure. Check backend server.');

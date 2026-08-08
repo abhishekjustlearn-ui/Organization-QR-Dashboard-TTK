@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Plus, UserPlus, Users, Key, Mail, Building2, Check, Copy } from 'lucide-react';
-import { Organization, SubAdminUser } from '../mockData';
+import { Plus, UserPlus, Users, Key, Mail, Building2, Check, Copy, Shield, Sliders, X } from 'lucide-react';
+import { Organization, SubAdminUser, SubAdminPermissions, DEFAULT_PERMISSIONS } from '../mockData';
 
 interface AdminManagementTabProps {
   organizations: Organization[];
@@ -9,6 +9,9 @@ interface AdminManagementTabProps {
   onToggleOrgStatus: (orgId: string, currentStatus: string) => void;
   subAdmins: SubAdminUser[];
   createSubAdmin: (admin: SubAdminUser) => void;
+  onUpdateSubAdminPermissions?: (username: string, newPermissions: SubAdminPermissions) => void;
+  onToggleSubAdminStatus?: (username: string, currentStatus?: string) => void;
+  onDeleteSubAdmin?: (username: string) => void;
 }
 
 export const AdminManagementTab: React.FC<AdminManagementTabProps> = ({
@@ -18,6 +21,9 @@ export const AdminManagementTab: React.FC<AdminManagementTabProps> = ({
   onToggleOrgStatus,
   subAdmins,
   createSubAdmin,
+  onUpdateSubAdminPermissions,
+  onToggleSubAdminStatus,
+  onDeleteSubAdmin,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'orgs' | 'admins'>('orgs');
 
@@ -33,8 +39,63 @@ export const AdminManagementTab: React.FC<AdminManagementTabProps> = ({
   const [adminUsername, setAdminUsername] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [adminSuccess, setAdminSuccess] = useState('');
+  const [adminPermissions, setAdminPermissions] = useState<SubAdminPermissions>(DEFAULT_PERMISSIONS);
+
+  // Edit Permissions Modal State
+  const [editingAdmin, setEditingAdmin] = useState<SubAdminUser | null>(null);
+  const [editPermissionsState, setEditPermissionsState] = useState<SubAdminPermissions>(DEFAULT_PERMISSIONS);
 
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  // Permission Presets
+  const applyPreset = (preset: 'all' | 'view-only' | 'campaign-manager', target: 'create' | 'edit') => {
+    let p: SubAdminPermissions;
+    if (preset === 'all') {
+      p = JSON.parse(JSON.stringify(DEFAULT_PERMISSIONS));
+    } else if (preset === 'view-only') {
+      p = {
+        analytics: {
+          metrics: { scans: true, installs: true, signups: true, paying: true },
+          graph: { scans: true, installs: true, signups: true, paying: true },
+          funnel: { scans: true, installs: true, signups: true, paying: true },
+          activityLog: true,
+        },
+        campaigns: {
+          create: false,
+          design: true,
+          pause: false,
+          delete: false,
+          metrics: { scans: true, installs: true, signups: true, paying: true },
+        },
+        settings: {
+          editProfile: false,
+        },
+      };
+    } else {
+      // Campaign Manager
+      p = {
+        analytics: {
+          metrics: { scans: true, installs: true, signups: true, paying: false },
+          graph: { scans: true, installs: true, signups: true, paying: false },
+          funnel: { scans: true, installs: true, signups: true, paying: false },
+          activityLog: true,
+        },
+        campaigns: {
+          create: true,
+          design: true,
+          pause: true,
+          delete: false,
+          metrics: { scans: true, installs: true, signups: true, paying: false },
+        },
+        settings: {
+          editProfile: false,
+        },
+      };
+    }
+
+    if (target === 'create') setAdminPermissions(p);
+    else setEditPermissionsState(p);
+  };
 
   const handleCreateOrg = (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,13 +145,16 @@ export const AdminManagementTab: React.FC<AdminManagementTabProps> = ({
       password_plain: adminPassword.trim(),
       org_id: adminOrgId,
       name: adminName.trim() || 'Org Coordinator',
+      status: 'active',
+      permissions: adminPermissions,
     };
 
     createSubAdmin(newSubAdmin);
     setAdminName('');
     setAdminUsername('');
     setAdminPassword('');
-    setAdminSuccess(`Credentials created for "${newSubAdmin.name}"!`);
+    setAdminPermissions(DEFAULT_PERMISSIONS);
+    setAdminSuccess(`Credentials created for "${newSubAdmin.name}" with custom access!`);
     setTimeout(() => setAdminSuccess(''), 3000);
   };
 
@@ -101,13 +165,45 @@ export const AdminManagementTab: React.FC<AdminManagementTabProps> = ({
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
+  const openEditModal = (admin: SubAdminUser) => {
+    setEditingAdmin(admin);
+    const existing = admin.permissions || DEFAULT_PERMISSIONS;
+    const merged: SubAdminPermissions = {
+      analytics: {
+        metrics: { ...DEFAULT_PERMISSIONS.analytics.metrics, ...existing.analytics?.metrics },
+        graph: { ...DEFAULT_PERMISSIONS.analytics.graph, ...existing.analytics?.graph },
+        funnel: { ...DEFAULT_PERMISSIONS.analytics.funnel, ...existing.analytics?.funnel },
+        activityLog: existing.analytics?.activityLog !== undefined ? existing.analytics.activityLog : true,
+      },
+      campaigns: {
+        ...DEFAULT_PERMISSIONS.campaigns,
+        ...existing.campaigns,
+        metrics: {
+          ...DEFAULT_PERMISSIONS.campaigns.metrics,
+          ...existing.campaigns?.metrics,
+        },
+      },
+      settings: {
+        ...DEFAULT_PERMISSIONS.settings,
+        ...existing.settings,
+      },
+    };
+    setEditPermissionsState(merged);
+  };
+
+  const handleSaveEditedPermissions = () => {
+    if (!editingAdmin || !onUpdateSubAdminPermissions) return;
+    onUpdateSubAdminPermissions(editingAdmin.username, editPermissionsState);
+    setEditingAdmin(null);
+  };
+
   return (
     <div style={styles.container}>
       {/* Header */}
       <div style={styles.header}>
         <div>
           <h2 style={styles.title}>System Control Center</h2>
-          <p style={styles.subtitle}>Super-Admin Panel to configure partners, spin up sub-admins, and inspect system states.</p>
+          <p style={styles.subtitle}>Super-Admin Panel to configure partners, spin up sub-admins, and customize access checklists.</p>
         </div>
       </div>
 
@@ -253,7 +349,7 @@ export const AdminManagementTab: React.FC<AdminManagementTabProps> = ({
           {/* List of Sub Admins */}
           <div className="glass-card" style={styles.leftCard}>
             <h3 style={styles.cardTitle}>Active Sub-Admin Users</h3>
-            <p style={styles.cardDesc}>Users mapped to specific organizations to manage their analytics and QR customizers.</p>
+            <p style={styles.cardDesc}>Users mapped to specific organizations with customized visibility controls.</p>
             
             <div style={styles.list}>
               {subAdmins.map((admin, idx) => {
@@ -262,38 +358,96 @@ export const AdminManagementTab: React.FC<AdminManagementTabProps> = ({
                   <div key={admin.username} style={styles.adminItem}>
                     <div style={styles.adminHeader}>
                       <span style={styles.adminNameTitle}>{admin.name}</span>
-                      <span style={styles.adminOrgName}>{org?.org_name || 'Unassigned'}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={styles.adminOrgName}>{org?.org_name || 'Unassigned'}</span>
+                        <span style={{ 
+                          ...styles.statusBadge, 
+                          backgroundColor: admin.status === 'suspended' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                          color: admin.status === 'suspended' ? '#ef4444' : '#10b981'
+                        }}>
+                          ● {(admin.status || 'active').toUpperCase()}
+                        </span>
+                      </div>
                     </div>
                     <div style={styles.adminMeta}>
                       <span>User: {admin.username}</span>
                       <span>Pass: {admin.password_plain}</span>
                     </div>
-                    <button 
-                      onClick={() => handleCopyCredentials(admin, idx)}
-                      style={styles.adminCopyBtn}
-                    >
-                      {copiedIndex === idx ? (
-                        <>
-                          <Check size={12} style={{ color: '#10b981' }} />
-                          <span style={{ color: '#10b981' }}>Copied!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy size={12} />
-                          <span>Copy Login Details</span>
-                        </>
+
+                    <div style={styles.adminActionRow}>
+                      <button 
+                        onClick={() => handleCopyCredentials(admin, idx)}
+                        style={styles.adminCopyBtn}
+                      >
+                        {copiedIndex === idx ? (
+                          <>
+                            <Check size={12} style={{ color: '#10b981' }} />
+                            <span style={{ color: '#10b981' }}>Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={12} />
+                            <span>Copy Login</span>
+                          </>
+                        )}
+                      </button>
+
+                      {onUpdateSubAdminPermissions && (
+                        <button
+                          onClick={() => openEditModal(admin)}
+                          style={styles.editAccessBtn}
+                        >
+                          <Shield size={12} style={{ color: '#00f2fe' }} />
+                          <span>Edit Access</span>
+                        </button>
                       )}
-                    </button>
+
+                      {onToggleSubAdminStatus && (
+                        <button
+                          onClick={() => onToggleSubAdminStatus(admin.username, admin.status)}
+                          style={{
+                            ...styles.actionBtn,
+                            padding: '4px 8px',
+                            fontSize: '0.72rem',
+                            color: admin.status === 'suspended' ? '#10b981' : '#f59e0b',
+                            backgroundColor: admin.status === 'suspended' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(245, 158, 11, 0.05)',
+                            border: admin.status === 'suspended' ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(245, 158, 11, 0.2)',
+                          }}
+                        >
+                          {admin.status === 'suspended' ? 'Activate' : 'Suspend'}
+                        </button>
+                      )}
+
+                      {onDeleteSubAdmin && (
+                        <button
+                          onClick={() => {
+                            if (confirm(`Are you sure you want to permanently delete sub-admin account "${admin.name}" (${admin.username})?`)) {
+                              onDeleteSubAdmin(admin.username);
+                            }
+                          }}
+                          style={{
+                            ...styles.actionBtn,
+                            padding: '4px 8px',
+                            fontSize: '0.72rem',
+                            color: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.05)',
+                            border: '1px solid rgba(239, 68, 68, 0.2)',
+                          }}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* Create new Sub Admin Form */}
+          {/* Create new Sub Admin Form with Granular Permissions Matrix */}
           <div className="glass-card" style={styles.rightCard}>
             <h3 style={styles.cardTitle}>Create Sub-Admin Account</h3>
-            <p style={styles.cardDesc}>Generate credentials and link them to an organization partner.</p>
+            <p style={styles.cardDesc}>Generate credentials and configure exact parameter view & action permissions.</p>
 
             {adminSuccess && <div style={styles.successBanner}>{adminSuccess}</div>}
 
@@ -357,11 +511,746 @@ export const AdminManagementTab: React.FC<AdminManagementTabProps> = ({
                 </div>
               </div>
 
-              <button type="submit" className="btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '12px' }}>
+              {/* Granular Permission Checklist Matrix */}
+              <div style={styles.permSection}>
+                <div style={styles.permHeaderRow}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Sliders size={14} style={{ color: '#ffd700' }} />
+                    <span style={styles.permSectionTitle}>Access & Visibility Checklist</span>
+                  </div>
+                  <div style={styles.presetGroup}>
+                    <button type="button" onClick={() => applyPreset('all', 'create')} style={styles.presetBtn}>Select All</button>
+                    <button type="button" onClick={() => applyPreset('view-only', 'create')} style={styles.presetBtn}>View Only</button>
+                    <button type="button" onClick={() => applyPreset('campaign-manager', 'create')} style={styles.presetBtn}>Campaign Manager</button>
+                  </div>
+                </div>
+
+                {/* 1. Overview & Analytics */}
+                <div style={styles.permGroup}>
+                  <span style={styles.permGroupTitle}>📊 Overview & Analytics</span>
+                  
+                  <div style={styles.permSubGroup}>
+                    <span style={styles.permSubTitle}>KPI Metrics:</span>
+                    <div style={styles.checkboxGrid}>
+                      <label style={styles.checkLabel}>
+                        <input
+                          type="checkbox"
+                          checked={adminPermissions.analytics.metrics.scans}
+                          onChange={(e) => setAdminPermissions({
+                            ...adminPermissions,
+                            analytics: {
+                              ...adminPermissions.analytics,
+                              metrics: { ...adminPermissions.analytics.metrics, scans: e.target.checked }
+                            }
+                          })}
+                        />
+                        <span>Total Scans</span>
+                      </label>
+                      <label style={styles.checkLabel}>
+                        <input
+                          type="checkbox"
+                          checked={adminPermissions.analytics.metrics.installs}
+                          onChange={(e) => setAdminPermissions({
+                            ...adminPermissions,
+                            analytics: {
+                              ...adminPermissions.analytics,
+                              metrics: { ...adminPermissions.analytics.metrics, installs: e.target.checked }
+                            }
+                          })}
+                        />
+                        <span>App Installs</span>
+                      </label>
+                      <label style={styles.checkLabel}>
+                        <input
+                          type="checkbox"
+                          checked={adminPermissions.analytics.metrics.signups}
+                          onChange={(e) => setAdminPermissions({
+                            ...adminPermissions,
+                            analytics: {
+                              ...adminPermissions.analytics,
+                              metrics: { ...adminPermissions.analytics.metrics, signups: e.target.checked }
+                            }
+                          })}
+                        />
+                        <span>Signups</span>
+                      </label>
+                      <label style={styles.checkLabel}>
+                        <input
+                          type="checkbox"
+                          checked={adminPermissions.analytics.metrics.paying}
+                          onChange={(e) => setAdminPermissions({
+                            ...adminPermissions,
+                            analytics: {
+                              ...adminPermissions.analytics,
+                              metrics: { ...adminPermissions.analytics.metrics, paying: e.target.checked }
+                            }
+                          })}
+                        />
+                        <span>Paying Users</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div style={styles.permSubGroup}>
+                    <span style={styles.permSubTitle}>Trend Graph:</span>
+                    <div style={styles.checkboxGrid}>
+                      <label style={styles.checkLabel}>
+                        <input
+                          type="checkbox"
+                          checked={adminPermissions.analytics.graph.scans}
+                          onChange={(e) => setAdminPermissions({
+                            ...adminPermissions,
+                            analytics: {
+                              ...adminPermissions.analytics,
+                              graph: { ...adminPermissions.analytics.graph, scans: e.target.checked }
+                            }
+                          })}
+                        />
+                        <span>Scans Graph</span>
+                      </label>
+                      <label style={styles.checkLabel}>
+                        <input
+                          type="checkbox"
+                          checked={adminPermissions.analytics.graph.installs}
+                          onChange={(e) => setAdminPermissions({
+                            ...adminPermissions,
+                            analytics: {
+                              ...adminPermissions.analytics,
+                              graph: { ...adminPermissions.analytics.graph, installs: e.target.checked }
+                            }
+                          })}
+                        />
+                        <span>Installs Graph</span>
+                      </label>
+                      <label style={styles.checkLabel}>
+                        <input
+                          type="checkbox"
+                          checked={adminPermissions.analytics.graph.signups}
+                          onChange={(e) => setAdminPermissions({
+                            ...adminPermissions,
+                            analytics: {
+                              ...adminPermissions.analytics,
+                              graph: { ...adminPermissions.analytics.graph, signups: e.target.checked }
+                            }
+                          })}
+                        />
+                        <span>Signups Graph</span>
+                      </label>
+                      <label style={styles.checkLabel}>
+                        <input
+                          type="checkbox"
+                          checked={adminPermissions.analytics.graph.paying}
+                          onChange={(e) => setAdminPermissions({
+                            ...adminPermissions,
+                            analytics: {
+                              ...adminPermissions.analytics,
+                              graph: { ...adminPermissions.analytics.graph, paying: e.target.checked }
+                            }
+                          })}
+                        />
+                        <span>Paying Users Graph</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div style={styles.permSubGroup}>
+                    <span style={styles.permSubTitle}>Conversion Funnel:</span>
+                    <div style={styles.checkboxGrid}>
+                      <label style={styles.checkLabel}>
+                        <input
+                          type="checkbox"
+                          checked={adminPermissions.analytics.funnel.scans}
+                          onChange={(e) => setAdminPermissions({
+                            ...adminPermissions,
+                            analytics: {
+                              ...adminPermissions.analytics,
+                              funnel: { ...adminPermissions.analytics.funnel, scans: e.target.checked }
+                            }
+                          })}
+                        />
+                        <span>Scans Funnel</span>
+                      </label>
+                      <label style={styles.checkLabel}>
+                        <input
+                          type="checkbox"
+                          checked={adminPermissions.analytics.funnel.installs}
+                          onChange={(e) => setAdminPermissions({
+                            ...adminPermissions,
+                            analytics: {
+                              ...adminPermissions.analytics,
+                              funnel: { ...adminPermissions.analytics.funnel, installs: e.target.checked }
+                            }
+                          })}
+                        />
+                        <span>Installs Funnel</span>
+                      </label>
+                      <label style={styles.checkLabel}>
+                        <input
+                          type="checkbox"
+                          checked={adminPermissions.analytics.funnel.signups}
+                          onChange={(e) => setAdminPermissions({
+                            ...adminPermissions,
+                            analytics: {
+                              ...adminPermissions.analytics,
+                              funnel: { ...adminPermissions.analytics.funnel, signups: e.target.checked }
+                            }
+                          })}
+                        />
+                        <span>Signups Funnel</span>
+                      </label>
+                      <label style={styles.checkLabel}>
+                        <input
+                          type="checkbox"
+                          checked={adminPermissions.analytics.funnel.paying}
+                          onChange={(e) => setAdminPermissions({
+                            ...adminPermissions,
+                            analytics: {
+                              ...adminPermissions.analytics,
+                              funnel: { ...adminPermissions.analytics.funnel, paying: e.target.checked }
+                            }
+                          })}
+                        />
+                        <span>Paying Users Funnel</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '8px' }}>
+                    <label style={styles.checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={adminPermissions.analytics.activityLog}
+                        onChange={(e) => setAdminPermissions({
+                          ...adminPermissions,
+                          analytics: {
+                            ...adminPermissions.analytics,
+                            activityLog: e.target.checked
+                          }
+                        })}
+                      />
+                      <span style={{ fontWeight: '600' }}>Show Live Attribution Log Table</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* 2. QR Campaigns */}
+                <div style={styles.permGroup}>
+                  <span style={styles.permGroupTitle}>🚀 QR Campaigns Capabilities</span>
+                  
+                  <div style={styles.permSubGroup}>
+                    <span style={styles.permSubTitle}>Campaign Actions:</span>
+                    <div style={styles.checkboxGrid}>
+                      <label style={styles.checkLabel}>
+                        <input
+                          type="checkbox"
+                          checked={adminPermissions.campaigns.create}
+                          onChange={(e) => setAdminPermissions({
+                            ...adminPermissions,
+                            campaigns: { ...adminPermissions.campaigns, create: e.target.checked }
+                          })}
+                        />
+                        <span>Create Campaign</span>
+                      </label>
+                      <label style={styles.checkLabel}>
+                        <input
+                          type="checkbox"
+                          checked={adminPermissions.campaigns.design}
+                          onChange={(e) => setAdminPermissions({
+                            ...adminPermissions,
+                            campaigns: { ...adminPermissions.campaigns, design: e.target.checked }
+                          })}
+                        />
+                        <span>Design Studio QR</span>
+                      </label>
+                      <label style={styles.checkLabel}>
+                        <input
+                          type="checkbox"
+                          checked={adminPermissions.campaigns.pause}
+                          onChange={(e) => setAdminPermissions({
+                            ...adminPermissions,
+                            campaigns: { ...adminPermissions.campaigns, pause: e.target.checked }
+                          })}
+                        />
+                        <span>Pause / Activate</span>
+                      </label>
+                      <label style={styles.checkLabel}>
+                        <input
+                          type="checkbox"
+                          checked={adminPermissions.campaigns.delete}
+                          onChange={(e) => setAdminPermissions({
+                            ...adminPermissions,
+                            campaigns: { ...adminPermissions.campaigns, delete: e.target.checked }
+                          })}
+                        />
+                        <span>Delete Campaign</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div style={styles.permSubGroup}>
+                    <span style={styles.permSubTitle}>Table Metrics Columns:</span>
+                    <div style={styles.checkboxGrid}>
+                      <label style={styles.checkLabel}>
+                        <input
+                          type="checkbox"
+                          checked={adminPermissions.campaigns.metrics.scans}
+                          onChange={(e) => setAdminPermissions({
+                            ...adminPermissions,
+                            campaigns: {
+                              ...adminPermissions.campaigns,
+                              metrics: { ...adminPermissions.campaigns.metrics, scans: e.target.checked }
+                            }
+                          })}
+                        />
+                        <span>Scans Column</span>
+                      </label>
+                      <label style={styles.checkLabel}>
+                        <input
+                          type="checkbox"
+                          checked={adminPermissions.campaigns.metrics.installs}
+                          onChange={(e) => setAdminPermissions({
+                            ...adminPermissions,
+                            campaigns: {
+                              ...adminPermissions.campaigns,
+                              metrics: { ...adminPermissions.campaigns.metrics, installs: e.target.checked }
+                            }
+                          })}
+                        />
+                        <span>Installs Column</span>
+                      </label>
+                      <label style={styles.checkLabel}>
+                        <input
+                          type="checkbox"
+                          checked={adminPermissions.campaigns.metrics.signups}
+                          onChange={(e) => setAdminPermissions({
+                            ...adminPermissions,
+                            campaigns: {
+                              ...adminPermissions.campaigns,
+                              metrics: { ...adminPermissions.campaigns.metrics, signups: e.target.checked }
+                            }
+                          })}
+                        />
+                        <span>Signups Column</span>
+                      </label>
+                      <label style={styles.checkLabel}>
+                        <input
+                          type="checkbox"
+                          checked={adminPermissions.campaigns.metrics.paying}
+                          onChange={(e) => setAdminPermissions({
+                            ...adminPermissions,
+                            campaigns: {
+                              ...adminPermissions.campaigns,
+                              metrics: { ...adminPermissions.campaigns.metrics, paying: e.target.checked }
+                            }
+                          })}
+                        />
+                        <span>Paying Users Column</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Organization Profile */}
+                <div style={styles.permGroup}>
+                  <span style={styles.permGroupTitle}>⚙️ Organization Profile</span>
+                  <label style={styles.checkLabel}>
+                    <input
+                      type="checkbox"
+                      checked={adminPermissions.settings.editProfile}
+                      onChange={(e) => setAdminPermissions({
+                        ...adminPermissions,
+                        settings: { ...adminPermissions.settings, editProfile: e.target.checked }
+                      })}
+                    />
+                    <span>Allow Editing Organization Name, Email & Phone</span>
+                  </label>
+                </div>
+              </div>
+
+              <button type="submit" className="btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '16px' }}>
                 <UserPlus size={16} />
-                <span>Create Credentials & Map Role</span>
+                <span>Create Credentials & Map Permissions</span>
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Permissions Modal for Super Admin */}
+      {editingAdmin && (
+        <div style={styles.modalOverlay}>
+          <div className="glass-card" style={styles.modalCard}>
+            <div style={styles.modalHeader}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Shield size={18} style={{ color: '#00f2fe' }} />
+                <div>
+                  <h3 style={styles.modalTitle}>Edit Access Permissions</h3>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>User: {editingAdmin.name} ({editingAdmin.username})</p>
+                </div>
+              </div>
+              <button onClick={() => setEditingAdmin(null)} style={styles.closeBtn}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={styles.presetGroupModal}>
+              <button type="button" onClick={() => applyPreset('all', 'edit')} style={styles.presetBtn}>Select All</button>
+              <button type="button" onClick={() => applyPreset('view-only', 'edit')} style={styles.presetBtn}>View Only</button>
+              <button type="button" onClick={() => applyPreset('campaign-manager', 'edit')} style={styles.presetBtn}>Campaign Manager</button>
+            </div>
+
+            {/* Modal Checklist */}
+            <div style={{ ...styles.permSection, maxHeight: '420px', overflowY: 'auto' }}>
+              {/* 1. Overview & Analytics */}
+              <div style={styles.permGroup}>
+                <span style={styles.permGroupTitle}>📊 Overview & Analytics</span>
+                
+                <div style={styles.permSubGroup}>
+                  <span style={styles.permSubTitle}>KPI Metrics:</span>
+                  <div style={styles.checkboxGrid}>
+                    <label style={styles.checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissionsState.analytics.metrics.scans}
+                        onChange={(e) => setEditPermissionsState({
+                          ...editPermissionsState,
+                          analytics: {
+                            ...editPermissionsState.analytics,
+                            metrics: { ...editPermissionsState.analytics.metrics, scans: e.target.checked }
+                          }
+                        })}
+                      />
+                      <span>Total Scans</span>
+                    </label>
+                    <label style={styles.checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissionsState.analytics.metrics.installs}
+                        onChange={(e) => setEditPermissionsState({
+                          ...editPermissionsState,
+                          analytics: {
+                            ...editPermissionsState.analytics,
+                            metrics: { ...editPermissionsState.analytics.metrics, installs: e.target.checked }
+                          }
+                        })}
+                      />
+                      <span>App Installs</span>
+                    </label>
+                    <label style={styles.checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissionsState.analytics.metrics.signups}
+                        onChange={(e) => setEditPermissionsState({
+                          ...editPermissionsState,
+                          analytics: {
+                            ...editPermissionsState.analytics,
+                            metrics: { ...editPermissionsState.analytics.metrics, signups: e.target.checked }
+                          }
+                        })}
+                      />
+                      <span>Signups</span>
+                    </label>
+                    <label style={styles.checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissionsState.analytics.metrics.paying}
+                        onChange={(e) => setEditPermissionsState({
+                          ...editPermissionsState,
+                          analytics: {
+                            ...editPermissionsState.analytics,
+                            metrics: { ...editPermissionsState.analytics.metrics, paying: e.target.checked }
+                          }
+                        })}
+                      />
+                      <span>Paying Users</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div style={styles.permSubGroup}>
+                  <span style={styles.permSubTitle}>Trend Graph:</span>
+                  <div style={styles.checkboxGrid}>
+                    <label style={styles.checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissionsState.analytics.graph.scans}
+                        onChange={(e) => setEditPermissionsState({
+                          ...editPermissionsState,
+                          analytics: {
+                            ...editPermissionsState.analytics,
+                            graph: { ...editPermissionsState.analytics.graph, scans: e.target.checked }
+                          }
+                        })}
+                      />
+                      <span>Scans Graph</span>
+                    </label>
+                    <label style={styles.checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissionsState.analytics.graph.installs}
+                        onChange={(e) => setEditPermissionsState({
+                          ...editPermissionsState,
+                          analytics: {
+                            ...editPermissionsState.analytics,
+                            graph: { ...editPermissionsState.analytics.graph, installs: e.target.checked }
+                          }
+                        })}
+                      />
+                      <span>Installs Graph</span>
+                    </label>
+                    <label style={styles.checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissionsState.analytics.graph.signups}
+                        onChange={(e) => setEditPermissionsState({
+                          ...editPermissionsState,
+                          analytics: {
+                            ...editPermissionsState.analytics,
+                            graph: { ...editPermissionsState.analytics.graph, signups: e.target.checked }
+                          }
+                        })}
+                      />
+                      <span>Signups Graph</span>
+                    </label>
+                    <label style={styles.checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissionsState.analytics.graph.paying}
+                        onChange={(e) => setEditPermissionsState({
+                          ...editPermissionsState,
+                          analytics: {
+                            ...editPermissionsState.analytics,
+                            graph: { ...editPermissionsState.analytics.graph, paying: e.target.checked }
+                          }
+                        })}
+                      />
+                      <span>Paying Users Graph</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div style={styles.permSubGroup}>
+                  <span style={styles.permSubTitle}>Conversion Funnel:</span>
+                  <div style={styles.checkboxGrid}>
+                    <label style={styles.checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissionsState.analytics.funnel.scans}
+                        onChange={(e) => setEditPermissionsState({
+                          ...editPermissionsState,
+                          analytics: {
+                            ...editPermissionsState.analytics,
+                            funnel: { ...editPermissionsState.analytics.funnel, scans: e.target.checked }
+                          }
+                        })}
+                      />
+                      <span>Scans Funnel</span>
+                    </label>
+                    <label style={styles.checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissionsState.analytics.funnel.installs}
+                        onChange={(e) => setEditPermissionsState({
+                          ...editPermissionsState,
+                          analytics: {
+                            ...editPermissionsState.analytics,
+                            funnel: { ...editPermissionsState.analytics.funnel, installs: e.target.checked }
+                          }
+                        })}
+                      />
+                      <span>Installs Funnel</span>
+                    </label>
+                    <label style={styles.checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissionsState.analytics.funnel.signups}
+                        onChange={(e) => setEditPermissionsState({
+                          ...editPermissionsState,
+                          analytics: {
+                            ...editPermissionsState.analytics,
+                            funnel: { ...editPermissionsState.analytics.funnel, signups: e.target.checked }
+                          }
+                        })}
+                      />
+                      <span>Signups Funnel</span>
+                    </label>
+                    <label style={styles.checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissionsState.analytics.funnel.paying}
+                        onChange={(e) => setEditPermissionsState({
+                          ...editPermissionsState,
+                          analytics: {
+                            ...editPermissionsState.analytics,
+                            funnel: { ...editPermissionsState.analytics.funnel, paying: e.target.checked }
+                          }
+                        })}
+                      />
+                      <span>Paying Users Funnel</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '8px' }}>
+                  <label style={styles.checkLabel}>
+                    <input
+                      type="checkbox"
+                      checked={editPermissionsState.analytics.activityLog}
+                      onChange={(e) => setEditPermissionsState({
+                        ...editPermissionsState,
+                        analytics: {
+                          ...editPermissionsState.analytics,
+                          activityLog: e.target.checked
+                        }
+                      })}
+                    />
+                    <span style={{ fontWeight: '600' }}>Show Live Attribution Log Table</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* 2. QR Campaigns */}
+              <div style={styles.permGroup}>
+                <span style={styles.permGroupTitle}>🚀 QR Campaigns Capabilities</span>
+                
+                <div style={styles.permSubGroup}>
+                  <span style={styles.permSubTitle}>Campaign Actions:</span>
+                  <div style={styles.checkboxGrid}>
+                    <label style={styles.checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissionsState.campaigns.create}
+                        onChange={(e) => setEditPermissionsState({
+                          ...editPermissionsState,
+                          campaigns: { ...editPermissionsState.campaigns, create: e.target.checked }
+                        })}
+                      />
+                      <span>Create Campaign</span>
+                    </label>
+                    <label style={styles.checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissionsState.campaigns.design}
+                        onChange={(e) => setEditPermissionsState({
+                          ...editPermissionsState,
+                          campaigns: { ...editPermissionsState.campaigns, design: e.target.checked }
+                        })}
+                      />
+                      <span>Design Studio QR</span>
+                    </label>
+                    <label style={styles.checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissionsState.campaigns.pause}
+                        onChange={(e) => setEditPermissionsState({
+                          ...editPermissionsState,
+                          campaigns: { ...editPermissionsState.campaigns, pause: e.target.checked }
+                        })}
+                      />
+                      <span>Pause / Activate</span>
+                    </label>
+                    <label style={styles.checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissionsState.campaigns.delete}
+                        onChange={(e) => setEditPermissionsState({
+                          ...editPermissionsState,
+                          campaigns: { ...editPermissionsState.campaigns, delete: e.target.checked }
+                        })}
+                      />
+                      <span>Delete Campaign</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div style={styles.permSubGroup}>
+                  <span style={styles.permSubTitle}>Table Metrics Columns:</span>
+                  <div style={styles.checkboxGrid}>
+                    <label style={styles.checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissionsState.campaigns.metrics.scans}
+                        onChange={(e) => setEditPermissionsState({
+                          ...editPermissionsState,
+                          campaigns: {
+                            ...editPermissionsState.campaigns,
+                            metrics: { ...editPermissionsState.campaigns.metrics, scans: e.target.checked }
+                          }
+                        })}
+                      />
+                      <span>Scans Column</span>
+                    </label>
+                    <label style={styles.checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissionsState.campaigns.metrics.installs}
+                        onChange={(e) => setEditPermissionsState({
+                          ...editPermissionsState,
+                          campaigns: {
+                            ...editPermissionsState.campaigns,
+                            metrics: { ...editPermissionsState.campaigns.metrics, installs: e.target.checked }
+                          }
+                        })}
+                      />
+                      <span>Installs Column</span>
+                    </label>
+                    <label style={styles.checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissionsState.campaigns.metrics.signups}
+                        onChange={(e) => setEditPermissionsState({
+                          ...editPermissionsState,
+                          campaigns: {
+                            ...editPermissionsState.campaigns,
+                            metrics: { ...editPermissionsState.campaigns.metrics, signups: e.target.checked }
+                          }
+                        })}
+                      />
+                      <span>Signups Column</span>
+                    </label>
+                    <label style={styles.checkLabel}>
+                      <input
+                        type="checkbox"
+                        checked={editPermissionsState.campaigns.metrics.paying}
+                        onChange={(e) => setEditPermissionsState({
+                          ...editPermissionsState,
+                          campaigns: {
+                            ...editPermissionsState.campaigns,
+                            metrics: { ...editPermissionsState.campaigns.metrics, paying: e.target.checked }
+                          }
+                        })}
+                      />
+                      <span>Paying Users Column</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Organization Profile */}
+              <div style={styles.permGroup}>
+                <span style={styles.permGroupTitle}>⚙️ Organization Profile</span>
+                <label style={styles.checkLabel}>
+                  <input
+                    type="checkbox"
+                    checked={editPermissionsState.settings.editProfile}
+                    onChange={(e) => setEditPermissionsState({
+                      ...editPermissionsState,
+                      settings: { ...editPermissionsState.settings, editProfile: e.target.checked }
+                    })}
+                  />
+                  <span>Allow Editing Organization Name, Email & Phone</span>
+                </label>
+              </div>
+            </div>
+
+            <div style={styles.modalActions}>
+              <button onClick={() => setEditingAdmin(null)} className="btn-secondary">
+                Cancel
+              </button>
+              <button onClick={handleSaveEditedPermissions} className="btn-primary">
+                Save Permissions
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -422,8 +1311,6 @@ const styles: Record<string, React.CSSProperties> = {
   rightCard: {
     display: 'flex',
     flexDirection: 'column',
-    position: 'sticky',
-    top: '40px',
   },
   cardTitle: {
     fontSize: '1.15rem',
@@ -439,7 +1326,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: '12px',
-    maxHeight: '460px',
+    maxHeight: '520px',
     overflowY: 'auto',
     paddingRight: '6px',
   },
@@ -523,8 +1410,15 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '8px 12px',
     borderRadius: '6px',
   },
+  adminActionRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '6px',
+    marginTop: '6px',
+    flexWrap: 'wrap',
+  },
   adminCopyBtn: {
-    alignSelf: 'flex-end',
     background: 'none',
     border: 'none',
     color: 'var(--text-muted)',
@@ -532,9 +1426,23 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '0.75rem',
     display: 'flex',
     alignItems: 'center',
-    gap: '6px',
-    padding: '4px 8px',
+    gap: '4px',
+    padding: '4px 6px',
     borderRadius: '4px',
+    transition: 'all 0.2s',
+  },
+  editAccessBtn: {
+    background: 'rgba(0, 242, 254, 0.06)',
+    border: '1px solid rgba(0, 242, 254, 0.2)',
+    color: '#00f2fe',
+    cursor: 'pointer',
+    fontSize: '0.75rem',
+    fontWeight: '600',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '4px 8px',
+    borderRadius: '6px',
     transition: 'all 0.2s',
   },
   inputIconWrapper: {
@@ -564,5 +1472,141 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     textAlign: 'center',
     transition: 'all 0.2s',
-  }
+  },
+  permSection: {
+    marginTop: '16px',
+    padding: '14px',
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '10px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '14px',
+  },
+  permHeaderRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '8px',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+    paddingBottom: '8px',
+  },
+  permSectionTitle: {
+    fontSize: '0.9rem',
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  presetGroup: {
+    display: 'flex',
+    gap: '6px',
+  },
+  presetGroupModal: {
+    display: 'flex',
+    gap: '8px',
+    marginBottom: '12px',
+  },
+  presetBtn: {
+    background: 'rgba(255, 255, 255, 0.05)',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    borderRadius: '6px',
+    color: 'var(--text-secondary)',
+    padding: '3px 8px',
+    fontSize: '0.72rem',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+  },
+  permGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    padding: '10px',
+    backgroundColor: 'rgba(255, 255, 255, 0.015)',
+    borderRadius: '8px',
+    border: '1px solid rgba(255, 255, 255, 0.03)',
+  },
+  permGroupTitle: {
+    fontSize: '0.85rem',
+    fontWeight: '700',
+    color: '#ffd700',
+  },
+  permSubGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+  },
+  permSubTitle: {
+    fontSize: '0.75rem',
+    color: 'var(--text-muted)',
+    fontWeight: '600',
+  },
+  checkboxGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+    gap: '8px',
+  },
+  checkLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    fontSize: '0.8rem',
+    color: '#ffffff',
+    cursor: 'pointer',
+    userSelect: 'none',
+  },
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backdropFilter: 'blur(4px)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+    padding: '20px',
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: '560px',
+    maxHeight: '90vh',
+    display: 'flex',
+    flexDirection: 'column',
+    padding: '24px',
+    backgroundColor: '#0d1024',
+    border: '1px solid rgba(0, 242, 254, 0.2)',
+    borderRadius: '16px',
+  },
+  modalHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '16px',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+    paddingBottom: '12px',
+  },
+  modalTitle: {
+    fontSize: '1.15rem',
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  closeBtn: {
+    background: 'none',
+    border: 'none',
+    color: 'var(--text-muted)',
+    cursor: 'pointer',
+    padding: '4px',
+    borderRadius: '4px',
+  },
+  modalActions: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '12px',
+    marginTop: '20px',
+    paddingTop: '14px',
+    borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+  },
 };

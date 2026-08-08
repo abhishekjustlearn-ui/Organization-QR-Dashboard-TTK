@@ -6,7 +6,7 @@ import { CampaignsTab } from './components/CampaignsTab';
 import { OrgSettingsTab } from './components/OrgSettingsTab';
 import { AdminManagementTab } from './components/AdminManagementTab';
 import { Login } from './components/Login';
-import { Organization, SubAdminUser, Campaign } from './mockData';
+import { Organization, SubAdminUser, Campaign, SubAdminPermissions, DEFAULT_PERMISSIONS } from './mockData';
 import { API_BASE } from './config';
 import { LandingPage } from './components/LandingPage';
 
@@ -20,6 +20,7 @@ function App() {
   const [userRole, setUserRole] = useState<'super-admin' | 'sub-admin' | null>(null);
   const [userEmail, setUserEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [userPermissions, setUserPermissions] = useState<SubAdminPermissions>(DEFAULT_PERMISSIONS);
 
   // Active Layout State
   const [activeOrgId, setActiveOrgId] = useState('');
@@ -41,6 +42,7 @@ function App() {
           setUserRole(session.role);
           setUserEmail(session.email);
           setDisplayName(session.name || '');
+          setUserPermissions(session.permissions || DEFAULT_PERMISSIONS);
           setIsAuthenticated(true);
           fetchOrganizations(session.role, session.orgId || '');
           if (session.role === 'super-admin') fetchSubAdmins();
@@ -108,16 +110,19 @@ function App() {
     role: 'super-admin' | 'sub-admin',
     email: string,
     orgId: string,
-    name: string
+    name: string,
+    permissions?: SubAdminPermissions
   ) => {
+    const effectivePermissions = permissions || DEFAULT_PERMISSIONS;
     setUserRole(role);
     setUserEmail(email);
     setDisplayName(name);
+    setUserPermissions(effectivePermissions);
     setIsAuthenticated(true);
     setActiveTab('analytics');
 
     // Persist session so refresh doesn't log out the user
-    localStorage.setItem('ttk_session', JSON.stringify({ role, email, orgId, name }));
+    localStorage.setItem('ttk_session', JSON.stringify({ role, email, orgId, name, permissions: effectivePermissions }));
 
     // Trigger loading organizations immediately with custom parameters
     fetchOrganizations(role, orgId);
@@ -132,6 +137,7 @@ function App() {
     setUserRole(null);
     setUserEmail('');
     setDisplayName('');
+    setUserPermissions(DEFAULT_PERMISSIONS);
     setActiveOrgId('');
     setOrganizations([]);
     setSubAdmins([]);
@@ -211,6 +217,41 @@ function App() {
     }
   };
 
+  // Wrapper function to toggle sub-admin status (suspend/activate)
+  const handleToggleSubAdminStatus = async (username: string, currentStatus?: string) => {
+    const nextStatus = currentStatus === 'suspended' ? 'active' : 'suspended';
+    try {
+      const response = await fetch(`${API_BASE}/api/orgs/subadmins/${encodeURIComponent(username)}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus })
+      });
+      if (response.ok) {
+        await fetchSubAdmins();
+      } else {
+        alert('Failed to update sub-admin status.');
+      }
+    } catch (err) {
+      console.error('Error toggling sub-admin status:', err);
+    }
+  };
+
+  // Wrapper function to permanently delete a sub-admin
+  const handleDeleteSubAdmin = async (username: string) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/orgs/subadmins/${encodeURIComponent(username)}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        await fetchSubAdmins();
+      } else {
+        alert('Failed to delete sub-admin.');
+      }
+    } catch (err) {
+      console.error('Error deleting sub-admin:', err);
+    }
+  };
+
   const activeOrg = organizations.find((o) => o.org_id === activeOrgId);
 
   // Check if current URL path matches the landing page router pattern: /:orgId/:campaignId
@@ -222,6 +263,25 @@ function App() {
   if (isLandingPage) {
     return <LandingPage orgId={pathSegments[0]} campaignId={pathSegments[1]} />;
   }
+
+  // Wrapper function to update sub-admin permissions
+  const handleUpdateSubAdminPermissions = async (username: string, newPermissions: SubAdminPermissions) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/orgs/subadmins/${encodeURIComponent(username)}/permissions`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ permissions: newPermissions })
+      });
+      if (response.ok) {
+        await fetchSubAdmins();
+      } else {
+        const data = await response.json();
+        alert(`Failed to update permissions: ${data.error}`);
+      }
+    } catch (err) {
+      console.error('Error updating sub-admin permissions:', err);
+    }
+  };
 
   // Guard Clause: If not logged in, mount Login Screen
   if (!isAuthenticated || !userRole) {
@@ -241,12 +301,15 @@ function App() {
       />
 
       {/* Premium Navigation Sidebar */}
-      <Sidebar
+      <Sidebar 
         organizations={organizations}
         activeOrgId={activeOrgId}
         setActiveOrgId={setActiveOrgId}
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={(tab) => {
+          setActiveTab(tab);
+          setIsSidebarOpen(false);
+        }}
         userRole={userRole}
         userEmail={userEmail}
         displayName={displayName}
@@ -275,6 +338,9 @@ function App() {
             onToggleOrgStatus={handleToggleOrgStatus}
             subAdmins={subAdmins}
             createSubAdmin={handleCreateSubAdmin}
+            onUpdateSubAdminPermissions={handleUpdateSubAdminPermissions}
+            onToggleSubAdminStatus={handleToggleSubAdminStatus}
+            onDeleteSubAdmin={handleDeleteSubAdmin}
           />
         )}
 
@@ -285,6 +351,7 @@ function App() {
                 <AnalyticsTab 
                   organization={activeOrg} 
                   campaigns={campaigns} 
+                  permissions={userPermissions}
                 />
               )}
               {activeTab === 'campaigns' && (
@@ -292,11 +359,13 @@ function App() {
                   organization={activeOrg}
                   campaigns={campaigns}
                   setCampaigns={setCampaigns}
+                  permissions={userPermissions}
                 />
               )}
               {activeTab === 'settings' && (
                 <OrgSettingsTab 
                   organization={activeOrg} 
+                  permissions={userPermissions}
                 />
               )}
             </>

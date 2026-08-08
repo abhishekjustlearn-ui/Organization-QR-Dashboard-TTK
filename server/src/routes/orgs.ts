@@ -64,7 +64,7 @@ router.put('/:orgId', async (req: Request, res: Response) => {
 // GET all sub-admins
 router.get('/subadmins', async (req: Request, res: Response) => {
   try {
-    const result = await query('SELECT username, password_plain, org_id, name, created_at FROM sub_admins ORDER BY created_at DESC');
+    const result = await query('SELECT username, password_plain, org_id, name, permissions, COALESCE(status, \'active\') as status, created_at FROM sub_admins ORDER BY created_at DESC');
     return res.status(200).json(result.rows);
   } catch (err) {
     console.error('Error fetching sub-admins:', err);
@@ -75,25 +75,79 @@ router.get('/subadmins', async (req: Request, res: Response) => {
 // POST create sub-admin
 router.post('/subadmins', async (req: Request, res: Response) => {
   try {
-    const { username, password_plain, org_id, name } = req.body;
+    const { username, password_plain, org_id, name, permissions } = req.body;
     if (!username || !password_plain || !org_id || !name) {
       return res.status(400).json({ error: 'All fields (username, password_plain, org_id, name) are required.' });
     }
 
     // Check duplicate
-    const checkDup = await query('SELECT username FROM sub_admins WHERE username = $1', [username]);
+    const checkDup = await query('SELECT username FROM sub_admins WHERE LOWER(username) = LOWER($1)', [username.trim()]);
     if (checkDup.rows.length > 0) {
       return res.status(400).json({ error: 'A user with this username already exists.' });
     }
 
     await query(
-      'INSERT INTO sub_admins (username, password_plain, org_id, name) VALUES ($1, $2, $3, $4)',
-      [username, password_plain, org_id, name]
+      'INSERT INTO sub_admins (username, password_plain, org_id, name, permissions, status) VALUES ($1, $2, $3, $4, $5, $6)',
+      [username.trim(), password_plain.trim(), org_id, name.trim(), permissions ? JSON.stringify(permissions) : null, 'active']
     );
 
     return res.status(201).json({ success: true, message: 'Sub-admin credentials mapped successfully.' });
   } catch (err) {
     console.error('Error creating sub-admin:', err);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// PUT update sub-admin permissions
+router.put('/subadmins/:username/permissions', async (req: Request, res: Response) => {
+  try {
+    const { username } = req.params;
+    const { permissions } = req.body;
+    if (!permissions || typeof permissions !== 'object') {
+      return res.status(400).json({ error: 'Valid permissions object is required.' });
+    }
+
+    await query(
+      'UPDATE sub_admins SET permissions = $1 WHERE LOWER(username) = LOWER($2)',
+      [JSON.stringify(permissions), username.trim()]
+    );
+
+    return res.status(200).json({ success: true, message: 'Sub-admin permissions updated successfully.' });
+  } catch (err) {
+    console.error('Error updating sub-admin permissions:', err);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// PUT update sub-admin status (activate / suspend)
+router.put('/subadmins/:username/status', async (req: Request, res: Response) => {
+  try {
+    const { username } = req.params;
+    const { status } = req.body;
+    if (!status || (status !== 'active' && status !== 'suspended')) {
+      return res.status(400).json({ error: 'Status must be either "active" or "suspended".' });
+    }
+
+    await query(
+      'UPDATE sub_admins SET status = $1 WHERE LOWER(username) = LOWER($2)',
+      [status, username.trim()]
+    );
+
+    return res.status(200).json({ success: true, message: `Sub-admin marked as ${status}.` });
+  } catch (err) {
+    console.error('Error updating sub-admin status:', err);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// DELETE sub-admin permanently
+router.delete('/subadmins/:username', async (req: Request, res: Response) => {
+  try {
+    const { username } = req.params;
+    await query('DELETE FROM sub_admins WHERE LOWER(username) = LOWER($1)', [username.trim()]);
+    return res.status(200).json({ success: true, message: 'Sub-admin account permanently deleted.' });
+  } catch (err) {
+    console.error('Error deleting sub-admin:', err);
     return res.status(500).json({ error: 'Internal server error.' });
   }
 });

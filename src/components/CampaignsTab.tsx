@@ -1,22 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, BarChart2, QrCode, Calendar, ArrowRight, X, Power, Trash2 } from 'lucide-react';
-import { Organization, Campaign } from '../mockData';
+import { Organization, Campaign, SubAdminPermissions, DEFAULT_PERMISSIONS } from '../mockData';
 import { QRStylingPanel } from './QRStylingPanel';
 import { QRPreview, QRStyleOptions } from './QRPreview';
 import { logoPresets } from '../assets/logoPresets';
-
-import { useEffect } from 'react';
 import { API_BASE } from '../config';
 
 interface CampaignsTabProps {
   organization: Organization;
   campaigns: Campaign[]; // Left for type compatibility but unused
   setCampaigns: React.Dispatch<React.SetStateAction<Campaign[]>>; // Left for type compatibility but unused
+  permissions?: SubAdminPermissions;
 }
 
 export const CampaignsTab: React.FC<CampaignsTabProps> = ({
   organization,
+  permissions,
 }) => {
+  const effectivePerms = permissions || DEFAULT_PERMISSIONS;
   const [localCampaigns, setLocalCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
@@ -155,7 +156,7 @@ export const CampaignsTab: React.FC<CampaignsTabProps> = ({
           <h2 style={styles.title}>Campaigns & QR Codes</h2>
           <p style={styles.subtitle}>Manage your marketing locations, print standees, and design custom QR codes.</p>
         </div>
-        {!selectedCampaign && !isAddingCampaign && (
+        {!selectedCampaign && !isAddingCampaign && effectivePerms.campaigns.create && (
           <button onClick={() => setIsAddingCampaign(true)} className="btn-primary">
             <Plus size={16} />
             <span>Create Campaign</span>
@@ -233,93 +234,123 @@ export const CampaignsTab: React.FC<CampaignsTabProps> = ({
                 <tr>
                   <th>Campaign Name</th>
                   <th>Date Created</th>
-                  <th>Scans</th>
-                  <th>Installs</th>
-                  <th>Signups</th>
-                  <th>Paying Users</th>
+                  {effectivePerms.campaigns.metrics.scans && <th>Scans</th>}
+                  {effectivePerms.campaigns.metrics.installs && <th>Installs</th>}
+                  {effectivePerms.campaigns.metrics.signups && <th>Signups</th>}
+                  {effectivePerms.campaigns.metrics.paying && <th>Paying Users</th>}
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {orgCampaigns.map((camp) => (
-                  <tr key={camp.campaign_id}>
-                    <td style={{ fontWeight: '600' }}>
-                      <div style={styles.campNameCol}>
-                        <QrCode size={16} style={{ color: camp.status === 'inactive' ? 'var(--text-muted)' : '#ffd700' }} />
-                        <span style={{ color: camp.status === 'inactive' ? 'var(--text-muted)' : 'inherit' }}>
-                          {camp.campaign_name}
-                        </span>
-                        <span style={{ 
-                          fontSize: '0.65rem', 
-                          fontWeight: '700', 
-                          marginLeft: '8px',
-                          padding: '2px 6px',
-                          borderRadius: '4px',
-                          textTransform: 'uppercase',
-                          backgroundColor: camp.status === 'inactive' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                          color: camp.status === 'inactive' ? '#ef4444' : '#10b981'
-                        }}>
-                          {camp.status || 'active'}
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={styles.dateCol}>
-                        <Calendar size={13} style={{ color: 'var(--text-muted)' }} />
-                        <span>{new Date(camp.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                      </div>
-                    </td>
-                    <td style={{ fontWeight: '500' }}>{camp.scans_count.toLocaleString()}</td>
-                    <td>{camp.installs_count.toLocaleString()}</td>
-                    <td>{camp.signups_count.toLocaleString()}</td>
-                    <td style={{ color: '#10b981', fontWeight: '600' }}>
-                      {(camp.paying_users || 0).toLocaleString()}
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                        <button
-                          onClick={() => handleSelectCampaign(camp)}
-                          className="btn-secondary"
-                          style={styles.designBtn}
-                        >
-                          <BarChart2 size={13} />
-                          <span>Design</span>
-                          <ArrowRight size={12} />
-                        </button>
-                        <button
-                          onClick={() => handleToggleStatus(camp.campaign_id, camp.status)}
-                          style={{
-                            ...styles.statusActionBtn,
-                            color: camp.status === 'inactive' ? '#10b981' : '#f59e0b',
-                            backgroundColor: camp.status === 'inactive' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(245, 158, 11, 0.05)',
-                            border: camp.status === 'inactive' ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(245, 158, 11, 0.2)',
-                          }}
-                        >
-                          <Power size={13} />
-                          <span>{camp.status === 'inactive' ? 'Activate' : 'Pause'}</span>
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (confirm(`Are you sure you want to delete campaign "${camp.campaign_name}"?`)) {
-                              handleDeleteCampaign(camp.campaign_id);
-                            }
-                          }}
-                          style={{
-                            ...styles.deleteActionBtn,
-                            color: '#ef4444',
-                            backgroundColor: 'rgba(239, 68, 68, 0.05)',
-                            border: '1px solid rgba(239, 68, 68, 0.2)',
-                          }}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {orgCampaigns.map((camp) => {
+                  const hasAnyAction = effectivePerms.campaigns.design || effectivePerms.campaigns.pause || effectivePerms.campaigns.delete;
+                  return (
+                    <tr key={camp.campaign_id}>
+                      <td style={{ fontWeight: '600' }}>
+                        <div style={styles.campNameCol}>
+                          <QrCode size={16} style={{ color: camp.status === 'inactive' ? 'var(--text-muted)' : '#ffd700' }} />
+                          <span style={{ color: camp.status === 'inactive' ? 'var(--text-muted)' : 'inherit' }}>
+                            {camp.campaign_name}
+                          </span>
+                          <span style={{ 
+                            fontSize: '0.65rem', 
+                            fontWeight: '700', 
+                            marginLeft: '8px',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            textTransform: 'uppercase',
+                            backgroundColor: camp.status === 'inactive' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                            color: camp.status === 'inactive' ? '#ef4444' : '#10b981'
+                          }}>
+                            {camp.status || 'active'}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <div style={styles.dateCol}>
+                          <Calendar size={13} style={{ color: 'var(--text-muted)' }} />
+                          <span>{new Date(camp.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                        </div>
+                      </td>
+                      {effectivePerms.campaigns.metrics.scans && (
+                        <td style={{ fontWeight: '500' }}>{camp.scans_count.toLocaleString()}</td>
+                      )}
+                      {effectivePerms.campaigns.metrics.installs && (
+                        <td>{camp.installs_count.toLocaleString()}</td>
+                      )}
+                      {effectivePerms.campaigns.metrics.signups && (
+                        <td>{camp.signups_count.toLocaleString()}</td>
+                      )}
+                      {effectivePerms.campaigns.metrics.paying && (
+                        <td style={{ color: '#10b981', fontWeight: '600' }}>
+                          {(camp.paying_users || 0).toLocaleString()}
+                        </td>
+                      )}
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                          {effectivePerms.campaigns.design && (
+                            <button
+                              onClick={() => handleSelectCampaign(camp)}
+                              className="btn-secondary"
+                              style={styles.designBtn}
+                            >
+                              <BarChart2 size={13} />
+                              <span>Design</span>
+                              <ArrowRight size={12} />
+                            </button>
+                          )}
+                          {effectivePerms.campaigns.pause && (
+                            <button
+                              onClick={() => handleToggleStatus(camp.campaign_id, camp.status)}
+                              style={{
+                                ...styles.statusActionBtn,
+                                color: camp.status === 'inactive' ? '#10b981' : '#f59e0b',
+                                backgroundColor: camp.status === 'inactive' ? 'rgba(16, 185, 129, 0.05)' : 'rgba(245, 158, 11, 0.05)',
+                                border: camp.status === 'inactive' ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(245, 158, 11, 0.2)',
+                              }}
+                            >
+                              <Power size={13} />
+                              <span>{camp.status === 'inactive' ? 'Activate' : 'Pause'}</span>
+                            </button>
+                          )}
+                          {effectivePerms.campaigns.delete && (
+                            <button
+                              onClick={() => {
+                                if (confirm(`Are you sure you want to delete campaign "${camp.campaign_name}"?`)) {
+                                  handleDeleteCampaign(camp.campaign_id);
+                                }
+                              }}
+                              style={{
+                                ...styles.deleteActionBtn,
+                                color: '#ef4444',
+                                backgroundColor: 'rgba(239, 68, 68, 0.05)',
+                                border: '1px solid rgba(239, 68, 68, 0.2)',
+                              }}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                          {!hasAnyAction && (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>View Only</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {orgCampaigns.length === 0 && (
                   <tr>
-                    <td colSpan={7} style={styles.emptyCell}>
+                    <td 
+                      colSpan={
+                        2 +
+                        (effectivePerms.campaigns.metrics.scans ? 1 : 0) +
+                        (effectivePerms.campaigns.metrics.installs ? 1 : 0) +
+                        (effectivePerms.campaigns.metrics.signups ? 1 : 0) +
+                        (effectivePerms.campaigns.metrics.paying ? 1 : 0) +
+                        1
+                      } 
+                      style={styles.emptyCell}
+                    >
                       No campaigns yet. Create your first campaign to generate a custom QR code!
                     </td>
                   </tr>

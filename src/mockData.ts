@@ -309,11 +309,72 @@ export const getOrgSummary = (orgId: string, campaigns: Campaign[]) => {
   };
 };
 
+export interface SubAdminPermissions {
+  analytics: {
+    metrics: {
+      scans: boolean;
+      installs: boolean;
+      signups: boolean;
+      paying: boolean;
+    };
+    graph: {
+      scans: boolean;
+      installs: boolean;
+      signups: boolean;
+      paying: boolean;
+    };
+    funnel: {
+      scans: boolean;
+      installs: boolean;
+      signups: boolean;
+      paying: boolean;
+    };
+    activityLog: boolean;
+  };
+  campaigns: {
+    create: boolean;
+    design: boolean;
+    pause: boolean;
+    delete: boolean;
+    metrics: {
+      scans: boolean;
+      installs: boolean;
+      signups: boolean;
+      paying: boolean;
+    };
+  };
+  settings: {
+    editProfile: boolean;
+  };
+}
+
+export const DEFAULT_PERMISSIONS: SubAdminPermissions = {
+  analytics: {
+    metrics: { scans: true, installs: true, signups: true, paying: true },
+    graph: { scans: true, installs: true, signups: true, paying: true },
+    funnel: { scans: true, installs: true, signups: true, paying: true },
+    activityLog: true,
+  },
+  campaigns: {
+    create: true,
+    design: true,
+    pause: true,
+    delete: true,
+    metrics: { scans: true, installs: true, signups: true, paying: true },
+  },
+  settings: {
+    editProfile: true,
+  },
+};
+
 export interface SubAdminUser {
   username: string;
   password_plain: string;
   org_id: string;
   name: string;
+  status?: 'active' | 'suspended';
+  permissions?: SubAdminPermissions;
+  created_at?: string;
 }
 
 export const mockSubAdmins: SubAdminUser[] = [
@@ -321,12 +382,16 @@ export const mockSubAdmins: SubAdminUser[] = [
     username: 'delhi@talktokrishna.com',
     password_plain: 'Delhi123!',
     org_id: 'org-iskcon-delhi',
-    name: 'Delhi Temple Coordinator'
+    name: 'Delhi Temple Coordinator',
+    status: 'active',
+    permissions: DEFAULT_PERMISSIONS,
   },
   {
     username: 'gita.youth@talktokrishna.com',
     password_plain: 'GitaYouth123!',
     org_id: 'org-gita-youth',
-    name: 'Gita Youth Admin'
+    name: 'Gita Youth Admin',
+    status: 'active',
+    permissions: DEFAULT_PERMISSIONS,
   }
 ];
